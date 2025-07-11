@@ -1,0 +1,113 @@
+[project]
+name = "sidekick"
+version = "0.1.0"
+description = "Modern Python CLI application template"
+readme = "README.md"
+license = { text = "CC-BY-NC-4.0" }
+authors = [
+    { name = "Marcel Hild", email = "hild@b4mad.net" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "loguru>=0.7.3", # Modern logging
+    "pydantic>=2.11.5", # Data validation and settings
+    "pydantic-settings>=2.0.0", # Settings management
+    "typer>=0.9.0", # CLI framework
+    "rich>=13.0.0", # Rich terminal output
+    "python-dotenv>=1.0.0", # Environment variable management
+]
+
+[project.scripts]
+sidekick = "sidekick:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Code quality with Ruff
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable comprehensive linting rules
+select = ["E", "F", "W", "I", "B", "UP", "PT", "SIM"]
+ignore = [
+    "B008",  # Do not perform function call in argument defaults (normal for typer)
+    "B023",  # Function definition does not bind loop variable (common pattern)
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+# Testing configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "slow: Slow running tests",
+    "performance: Performance tests and benchmarks",
+]
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+# Development dependencies
+[dependency-groups]
+dev = [
+    "ruff>=0.11.12", # Linting and formatting
+    "pytest>=8.4.0", # Testing framework
+    "pytest-asyncio>=1.0.0", # Async testing support
+    "pytest-cov>=6.1.1", # Coverage reporting
+    "pre-commit>=3.0.0", # Git hooks
+    "mypy>=1.16.1",
+]
+docs = [
+    "pdoc>=14.0.0",           # API documentation
+    "mkdocs>=1.5.0",          # Documentation site
+    "mkdocs-material>=9.0.0", # Material theme
+]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+# Relaxed settings for now - can be made stricter later
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+explicit_package_bases = true
+ignore_missing_imports = true
