@@ -1,0 +1,38 @@
+---
+description: Development workflow commands and processes for b4cli project
+globs:
+alwaysApply: true
+---
+
+# Development Workflow
+
+## Environment Setup
+- Use `uv sync --group dev` to install dependencies including dev group
+- Always use `uv run` prefix for running commands in the virtual environment
+
+## Testing Commands
+- Run all tests: `uv run pytest`
+- Run with coverage: `uv run pytest --cov=src --cov-report=html --cov-report=term-missing`
+- Run specific test types: `uv run pytest -m unit` (unit), `uv run pytest -m e2e` (end-to-end)
+- Skip slow tests: `uv run pytest -m "not slow"`
+
+## Application Commands
+- Run CLI: `uv run b4cli`
+- Debug logging: `uv run b4cli -v example hello`
+- Trace logging: `uv run b4cli -vv example config`
+- Example commands: `uv run b4cli example hello --name "Test"`, `uv run b4cli version`, `uv run b4cli info`
+
+## Code Quality Commands
+- Linting: `uv run ruff check`
+- Formatting: `uv run ruff format`
+- Type checking: `uv run mypy src/`
+- All quality checks: `uv run pre-commit run --all-files`
+
+## Makefile Targets
+- `make prepare-commit` - Comprehensive pre-commit validation
+- `make validate-tooling` - Check if tools would make changes
+- `make quality` - Run all quality checks (lint + typecheck + test)
+- `make lint` - Quick linting with auto-fixes
+- `make format` - Code formatting
+- `make typecheck` - Type checking
+- `make test` - Run pytest test suite

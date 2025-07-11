@@ -1,0 +1,66 @@
+---
+description: Documentation standards and Google Style docstring requirements
+globs:
+alwaysApply: false
+---
+
+# Documentation Standards
+
+## pdoc Documentation Rules
+- Use `pdoc` for API documentation generation from Python source
+- **Strictly use Google Style Docstrings** for all code elements
+- Document public variables using PEP 224 docstrings or `#:` doc-comments
+- Generated documentation located in `docs/b4cli/`
+- Target audience: developers and LLMs
+
+## Google Style Docstring Format
+```python
+def function_name(param1: str, param2: int) -> bool:
+    """Short description of function.
+
+    Longer description if needed.
+
+    Args:
+        param1: Description of param1
+        param2: Description of param2
+
+    Returns:
+        Description of return value
+
+    Raises:
+        ValueError: When something goes wrong
+    """
+```
+
+## Class Documentation
+```python
+class MyClass:
+    """Short description of class.
+
+    Longer description if needed.
+
+    Attributes:
+        attr1: Description of attr1
+        attr2: Description of attr2
+    """
+```
+
+## Module Documentation
+```python
+"""Module description.
+
+This module provides functionality for...
+
+Classes:
+    MyClass: Description of MyClass
+
+Functions:
+    my_function: Description of my_function
+"""
+```
+
+## Planning Documentation
+- Create planning documents in `docs/plans/<task_name>.md`
+- Use structured format with requirements, approach, files, testing sections
+- Include both successes and failures in implementation reports
+- Make plans reviewable and updateable throughout development

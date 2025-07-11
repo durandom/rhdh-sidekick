@@ -1,0 +1,32 @@
+---
+description: Project overview and core technologies for b4cli Python CLI template
+globs:
+alwaysApply: true
+---
+
+# Project Overview
+
+b4cli is a modern Python CLI application template built with best practices and production-ready features.
+
+## Core Technologies
+- **uv** for dependency management and virtual environments
+- **Typer** for CLI framework with Rich for beautiful output
+- **Pydantic** for data validation and settings management
+- **Loguru** for structured logging
+- **Ruff** for linting and formatting
+- **pytest** for testing with coverage
+
+## Project Structure
+- `src/b4cli/` - Main application code
+- `tests/` - Test suite (unit, integration, e2e)
+- `docs/` - Documentation and plans
+- `logs/` - Application and test logs
+- `Makefile` - Development workflow commands
+
+## Template Purpose
+This is a CLI application template designed to be easily customizable for new projects. When adapting for a new project:
+1. Rename package: Update `pyproject.toml` and rename `src/b4cli` directory
+2. Update imports: Change all `b4cli` imports to new package name
+3. Customize commands: Modify `commands.py` or create new command modules
+4. Add dependencies: Use `uv add package-name` for new dependencies
+5. Update documentation: Modify README.md and CLAUDE.md for specific use case

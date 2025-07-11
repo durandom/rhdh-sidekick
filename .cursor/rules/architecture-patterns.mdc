@@ -1,0 +1,56 @@
+---
+description: CLI architecture patterns and command development guidelines
+globs: src/b4cli/**/*.py
+alwaysApply: false
+---
+
+# Architecture Patterns
+
+## CLI Structure
+- Use modular command registry pattern
+- `src/b4cli/cli/base.py` - Base classes and command registry
+- `src/b4cli/cli/app.py` - Main CLI application and command registration
+- `src/b4cli/commands.py` - Example command implementations
+- Commands organized in modules and registered via `CommandRegistry`
+
+## Configuration Management
+- Use `src/b4cli/settings.py` for centralized settings with Pydantic
+- Support environment variables with nested delimiter `__` (e.g., `LOGGING__LEVEL=DEBUG`)
+- Environment variables automatically override file-based configuration
+
+## Logging Setup
+- Configure via `setup_logging()` in `src/b4cli/cli/base.py`
+- Support both "pretty" (colored) and "json" formats
+- Log to console and/or file with rotation
+- Control logging level and format via settings
+
+## Testing Organization
+- `tests/unit/` - Unit tests for individual components
+- `tests/integration/` - Integration tests for component interactions
+- `tests/e2e/` - End-to-end CLI tests using `typer.testing.CliRunner`
+- `tests/conftest.py` - Shared pytest fixtures
+
+## Command Development Patterns
+
+### Adding New Commands
+1. Create command group class inheriting from `CommandGroup`
+2. Implement `create_app()` method with commands
+3. Register with `command_registry.register("group-name", YourCommandClass)`
+4. Import module in `cli/app.py` to auto-register
+
+### Example Command Pattern
+```python
+class MyCommands(CommandGroup):
+    def create_app(self) -> typer.Typer:
+        app = typer.Typer(help="My command group")
+
+        @app.command()
+        def my_command(name: str = "World"):
+            """My command description."""
+            console.print(f"Hello, {name}!")
+
+        return app
+
+# Register the command group
+command_registry.register("my-group", MyCommands)
+```
