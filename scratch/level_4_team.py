@@ -45,7 +45,10 @@ reasoning_finance_team = Team(
     show_members_responses=True,
     enable_agentic_context=True,
     add_datetime_to_instructions=True,
-    success_criteria="The team has provided a complete financial analysis with data, visualizations, risk assessment, and actionable investment recommendations supported by quantitative analysis and market research.",
+    success_criteria=(
+        "The team has provided a complete financial analysis with data, visualizations, risk assessment, "
+        "and actionable investment recommendations supported by quantitative analysis and market research."
+    ),
 )
 
 if __name__ == "__main__":

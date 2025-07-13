@@ -71,5 +71,43 @@ class ExampleCommands(CommandGroup):
         return app
 
 
-# Register the example commands
+class SearchCommands(CommandGroup):
+    """Search command group for searching through data."""
+
+    def create_app(self) -> typer.Typer:
+        """Create the search commands app."""
+        app = typer.Typer(help="Search commands for finding data")
+
+        @app.command()
+        def search(
+            query: str = typer.Argument(..., help="Search query string"),
+        ) -> None:
+            """Search for items matching the query."""
+            logger.debug(f"Search command called with query={query}")
+
+            # Simulate search data
+            sample_data = [
+                "Python programming tutorial",
+                "CLI application development",
+                "BDD testing with pytest-bdd",
+                "Typer framework documentation",
+                "Rich console formatting",
+                "Pydantic data validation",
+            ]
+
+            # Simple search implementation
+            results = [item for item in sample_data if query.lower() in item.lower()]
+
+            if results:
+                console.print(f"[bold green]Found {len(results)} results for '{query}':[/bold green]")
+                for i, result in enumerate(results, 1):
+                    console.print(f"  {i}. {result}")
+            else:
+                console.print(f"[yellow]No results found for '{query}'[/yellow]")
+
+        return app
+
+
+# Register the command groups
 command_registry.register("example", ExampleCommands)
+command_registry.register("search", SearchCommands)

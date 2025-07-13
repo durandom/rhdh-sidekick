@@ -22,14 +22,7 @@ agent.print_response(
     session_id=session_id,
 )
 
-agent.print_response(
-    "I would also like to know about LLMs?",
-    stream=True,
-    user_id=user_id,
-    session_id=session_id
-)
+agent.print_response("I would also like to know about LLMs?", stream=True, user_id=user_id, session_id=session_id)
 
-session_summary = memory.get_session_summary(
-    user_id=user_id, session_id=session_id
-)
+session_summary = memory.get_session_summary(user_id=user_id, session_id=session_id)
 print(f"Session summary: {session_summary.summary}\n")
