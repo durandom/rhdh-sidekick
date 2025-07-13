@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 from textwrap import dedent
 
 from agno.agent import Agent
@@ -68,15 +67,13 @@ agent = Agent(
     markdown=True,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
-    debug_mode=True
+    debug_mode=True,
 )
 
 # Example usage
 if __name__ == "__main__":
     # Generate a research report on a cutting-edge topic
-    agent.print_response(
-        "Research the latest developments in brain-computer interfaces", stream=True
-    )
+    agent.print_response("Research the latest developments in brain-computer interfaces", stream=True)
 
 # More example prompts to try:
 """

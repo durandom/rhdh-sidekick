@@ -1,6 +1,7 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
+
 # Define a tool that increments our counter and returns the new value
 def add_item(agent: Agent, item: str) -> str:
     """Add an item to the shopping list."""

@@ -1,4 +1,5 @@
-from typing import Iterator
+from collections.abc import Iterator
+
 from agno.agent import Agent, RunResponseEvent
 from agno.models.openai import OpenAIChat
 from agno.utils.pprint import pprint_run_response
@@ -7,9 +8,7 @@ agent = Agent(model=OpenAIChat(id="gpt-4o-mini"), store_events=True)
 
 # Run agent and return the response as a stream
 response_stream: Iterator[RunResponseEvent] = agent.run(
-    "Tell me a 5 second short story about a lion",
-    stream=True,
-    stream_intermediate_steps=True
+    "Tell me a 5 second short story about a lion", stream=True, stream_intermediate_steps=True
 )
 
 # Print the response stream in markdown format

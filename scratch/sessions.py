@@ -1,6 +1,6 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.memory.v2 import Memory
+from agno.models.openai import OpenAIChat
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini"),

@@ -1,6 +1,4 @@
-from typing import Iterator
-
-from agno.agent import Agent, RunResponse
+from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.tools.yfinance import YFinanceTools
 from rich.pretty import pprint
@@ -12,9 +10,7 @@ agent = Agent(
     show_tool_calls=True,
 )
 
-agent.print_response(
-    "What is the stock price of NVDA", stream=True
-)
+agent.print_response("What is the stock price of NVDA", stream=True)
 
 # Print metrics per message
 if agent.run_response.messages:
