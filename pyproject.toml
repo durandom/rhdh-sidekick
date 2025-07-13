@@ -31,6 +31,9 @@ dependencies = [
     "opentelemetry-sdk>=1.35.0",
     "opentelemetry-exporter-otlp>=1.35.0",
     "openinference-instrumentation-agno>=0.1.8",
+    "exa-py>=1.14.16",
+    "google-genai>=1.25.0",
+    "pytest-bdd>=8.1.0",
 ]
 
 [project.scripts]
