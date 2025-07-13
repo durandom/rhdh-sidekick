@@ -76,12 +76,14 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "e2e: End-to-end tests",
+    "bdd: Behavior Driven Development tests",
     "slow: Slow running tests",
     "performance: Performance tests and benchmarks",
 ]
 filterwarnings = [
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]
+bdd_features_base_dir = "tests/bdd/features"
 
 # Coverage configuration
 [tool.coverage.run]
