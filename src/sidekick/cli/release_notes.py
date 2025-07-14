@@ -4,13 +4,13 @@ Release Notes CLI commands.
 This module provides CLI commands for generating release notes from Jira tickets.
 """
 
-import asyncio
-
 import typer
+from agno.utils.pprint import pprint_run_response
 from loguru import logger
 from rich.console import Console
+from rich.prompt import Prompt
 
-from ..workflows.release_notes import ReleaseNotesGenerator
+from ..agents.release_notes_agent import ReleaseNotesAgent
 
 console = Console()
 
@@ -34,92 +34,61 @@ def generate(
         "-f",
         help="Output format (markdown, text)",
     ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose output",
-    ),
-    use_mcp: bool = typer.Option(
-        False,
-        "--use-mcp/--no-mcp",
-        help="Use MCP Atlassian server or our custom JiraTools",
-    ),
 ) -> None:
     """
-    Generate release notes from a Jira ticket.
+    Generate release notes from a Jira ticket with interactive follow-up.
 
     This command fetches information from a Jira ticket and its associated
-    GitHub pull requests to generate comprehensive release notes.
+    GitHub pull requests to generate comprehensive release notes. After
+    generating the initial release notes, you can ask follow-up questions
+    or request modifications.
 
     Example:
         sidekick release-notes generate PROJ-123
-        sidekick release-notes generate PROJ-456 --format text --verbose
-        sidekick release-notes generate PROJ-789 --no-mcp
+        sidekick release-notes generate PROJ-456 --format text
     """
-    logger.debug(f"Generate release notes called with ticket_id={ticket_id}, format={output_format}, use_mcp={use_mcp}")
+    logger.debug(f"Generate release notes called with ticket_id={ticket_id}, format={output_format}")
 
-    async def _generate():
-        try:
-            # Initialize the release notes generator workflow
-            generator = ReleaseNotesGenerator(use_mcp=use_mcp)
+    try:
+        # Initialize the release notes agent
+        agent = ReleaseNotesAgent()
 
-            # Generate release notes
-            result = await generator.generate_release_notes(
-                ticket_id=ticket_id,
-                output_format=output_format,
+        # Generate initial release notes
+        console.print(f"[bold blue]Generating release notes for {ticket_id}...[/bold blue]")
+        response = agent.generate_release_notes(ticket_id, output_format=output_format)
+
+        # Display the response
+        pprint_run_response(response, markdown=True, show_time=True)
+
+        # Start the ask loop
+        current_query = ""
+        while True:
+            console.print(
+                "\n[bold cyan]Enter your follow-up question or modification request "
+                "(or press Enter to exit):[/bold cyan]"
             )
+            current_query = Prompt.ask("Follow-up query", default="").strip()
 
-            # Display results
-            console.print("[bold blue]Release Notes Generator[/bold blue]")
-            console.print(f"[dim]Ticket ID:[/dim] {ticket_id}")
-            console.print(f"[dim]Output Format:[/dim] {output_format}")
-            console.print(f"[dim]Session ID:[/dim] {result['session_id']}")
-            console.print(f"[dim]Integration:[/dim] {'MCP Atlassian' if use_mcp else 'JiraTools'}")
+            if not current_query:
+                console.print("[dim]Exiting release notes session...[/dim]")
+                break
 
-            # Display Jira issue information
-            jira_issue = result["jira_issue"]
-            console.print(f"\n[bold green]Jira Ticket:[/bold green] {jira_issue['key']}")
-            console.print(f"[dim]Summary:[/dim] {jira_issue['summary']}")
-            console.print(f"[dim]Status:[/dim] {jira_issue['status']}")
-            console.print(f"[dim]Priority:[/dim] {jira_issue['priority']}")
+            logger.debug(f"Processing follow-up query: {current_query}")
 
-            # Display PR links
-            pr_links = result["pr_links"]
-            if pr_links:
-                console.print(f"\n[bold cyan]Pull Requests Found:[/bold cyan] {len(pr_links)}")
-                for pr_link in pr_links:
-                    console.print(f"  • {pr_link}")
-            else:
-                console.print("\n[dim]No pull request links found in ticket[/dim]")
+            # Ask the agent
+            response = agent.ask(current_query)
 
-            # Display generated release notes
-            console.print("\n[bold yellow]Generated Release Notes:[/bold yellow]")
-            console.print(result["release_notes"])
+            # Display the response
+            pprint_run_response(response, markdown=True, show_time=True)
 
-            if verbose:
-                console.print("\n[cyan]Debug Information:[/cyan]")
-                console.print(f"  - Workflow version: {result['metadata']['workflow_version']}")
-                console.print(f"  - Agents used: {', '.join(result['metadata']['agents_used'])}")
-                console.print(f"  - Use MCP: {result['metadata']['use_mcp']}")
-                console.print(f"  - Status: {result['status']}")
-
-        except Exception as e:
-            logger.error(f"Failed to generate release notes: {e}")
-            console.print(f"\n[red]Error:[/red] {e}")
-            console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
-            console.print("  - JIRA_SERVER_URL")
-            console.print("  - JIRA_USERNAME")
-            console.print("  - JIRA_TOKEN")
-            console.print("  - GITHUB_ACCESS_TOKEN")
-
-            if use_mcp:
-                console.print("\n[cyan]MCP Integration:[/cyan]")
-                console.print("  - Make sure 'uvx mcp-atlassian' is available")
-                console.print("  - Try running with --no-mcp to use traditional JiraTools")
-
-    # Run the async function
-    asyncio.run(_generate())
+    except Exception as e:
+        logger.error(f"Failed to generate release notes: {e}")
+        console.print(f"\n[red]Error:[/red] {e}")
+        console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
+        console.print("  - JIRA_SERVER_URL")
+        console.print("  - JIRA_USERNAME")
+        console.print("  - JIRA_TOKEN")
+        console.print("  - GITHUB_ACCESS_TOKEN")
 
 
 @release_notes_app.command()
@@ -131,10 +100,10 @@ def info() -> None:
     console.print("  • Extracting GitHub pull request links")
     console.print("  • Gathering PR details and changes")
     console.print("  • Generating formatted release notes using AI")
+    console.print("  • Providing an interactive ask loop for follow-up questions")
 
-    console.print("\n[bold]Integration Options:[/bold]")
-    console.print("  • MCP Atlassian Server (default) - Uses mcp-atlassian via uvx")
-    console.print("  • Traditional JiraTools - Uses agno.tools.jira.JiraTools")
+    console.print("\n[bold]Integration:[/bold]")
+    console.print("  • Uses agno.tools.jira.JiraTools for Jira integration")
 
     console.print("\n[bold]Required Environment Variables:[/bold]")
     console.print("  • JIRA_SERVER_URL - Your Jira server URL")
@@ -144,8 +113,13 @@ def info() -> None:
 
     console.print("\n[bold]Usage:[/bold]")
     console.print("  sidekick release-notes generate <TICKET_ID>")
-    console.print("  sidekick release-notes generate PROJ-123 --format markdown --verbose")
-    console.print("  sidekick release-notes generate PROJ-456 --no-mcp  # Use traditional JiraTools")
+    console.print("  sidekick release-notes generate PROJ-123 --format markdown")
+
+    console.print("\n[bold]Interactive Features:[/bold]")
+    console.print("  • Ask follow-up questions about the release notes")
+    console.print("  • Request modifications to the format or content")
+    console.print("  • Get explanations about specific changes")
+    console.print("  • Session-based conversation with context retention")
 
 
 if __name__ == "__main__":

@@ -38,6 +38,7 @@ dependencies = [
     "markdown>=3.8.2",
     "jira>=3.8.0",
     "mcp>=1.11.0",
+    "pygithub>=2.6.1",
 ]
 
 [project.scripts]
