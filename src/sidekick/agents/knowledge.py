@@ -5,6 +5,7 @@ This module provides functionality to manage and load the Red Hat Developer Hub
 documentation knowledge base using the Agno framework with LanceDB vector storage.
 """
 
+import asyncio
 from pathlib import Path
 
 from agno.embedder.openai import OpenAIEmbedder
@@ -65,9 +66,9 @@ class KnowledgeManager:
             logger.debug(f"LanceDB created: {self.vector_db_path}/{self.table_name}")
         return self._vector_db
 
-    def load_knowledge(self, recreate: bool = False) -> MarkdownKnowledgeBase:
+    async def aload_knowledge(self, recreate: bool = False) -> MarkdownKnowledgeBase:
         """
-        Load or create the knowledge base
+        Load or create the knowledge base asynchronously.
 
         Args:
             recreate: If True, recreate the knowledge base even if it exists
@@ -95,9 +96,9 @@ class KnowledgeManager:
                 vector_db=self.get_vector_db(),
             )
 
-            # Load the knowledge base (this will create embeddings if needed)
-            logger.debug(f"Loading knowledge base (recreate={recreate})")
-            self._knowledge.load(recreate=recreate)
+            # Load the knowledge base asynchronously (this will create embeddings if needed)
+            logger.debug(f"Loading knowledge base asynchronously (recreate={recreate})")
+            await self._knowledge.aload(recreate=recreate)
 
             # Count loaded documents
             doc_count = len(list(self.knowledge_path.rglob("*.md")))
@@ -108,3 +109,19 @@ class KnowledgeManager:
         except Exception as e:
             logger.error(f"Failed to load knowledge base: {e}")
             raise RuntimeError(f"Knowledge loading failed: {e}") from e
+
+    def load_knowledge(self, recreate: bool = False) -> MarkdownKnowledgeBase:
+        """
+        Load or create the knowledge base (synchronous wrapper for async method).
+
+        Args:
+            recreate: If True, recreate the knowledge base even if it exists
+
+        Returns:
+            MarkdownKnowledgeBase instance with loaded RHDH docs
+
+        Raises:
+            FileNotFoundError: If knowledge path doesn't exist
+            RuntimeError: If knowledge loading fails
+        """
+        return asyncio.run(self.aload_knowledge(recreate=recreate))
