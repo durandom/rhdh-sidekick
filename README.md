@@ -1,7 +1,7 @@
 # sidekick - Modern Python CLI Application
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 A modern Python CLI application with AI-powered search capabilities built with Typer, Rich, and Pydantic.
@@ -61,4 +61,4 @@ uv run sidekick info
 
 ## License
 
-Creative Commons Attribution-NonCommercial 4.0 - Free for personal/educational use, no commercial use.
+Apache License 2.0 - See [LICENSE](LICENSE) file for details.
