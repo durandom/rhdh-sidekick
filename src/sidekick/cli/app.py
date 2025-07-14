@@ -12,6 +12,7 @@ import typer
 from agno.utils.pprint import pprint_run_response
 from loguru import logger
 from rich.console import Console
+from rich.prompt import Prompt
 
 from ..agents import SearchAgent
 
@@ -171,9 +172,25 @@ def search(
 
     # Use AI agent for search
     agent = SearchAgent()
-    response = agent.search(query)
 
-    pprint_run_response(response, markdown=True, show_time=True)
+    # Initial search
+    current_query = query
+    while current_query.strip():
+        logger.debug(f"Executing search with query: {current_query}")
+
+        # Execute search
+        response = agent.search(current_query)
+
+        # Print response
+        pprint_run_response(response, markdown=True, show_time=True)
+
+        # Ask for next query
+        console.print("\n[bold cyan]Enter your next search query (or press Enter to exit):[/bold cyan]")
+        current_query = Prompt.ask("Search query", default="").strip()
+
+        if not current_query:
+            console.print("[dim]Exiting search session...[/dim]")
+            break
 
 
 if __name__ == "__main__":
