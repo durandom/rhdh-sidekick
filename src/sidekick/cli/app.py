@@ -11,15 +11,15 @@ from pathlib import Path
 
 import typer
 from agno.utils.pprint import pprint_run_response
+from dotenv import load_dotenv
 from loguru import logger
 from rich.console import Console
 from rich.prompt import Prompt
 
 from ..agents import SearchAgent
-
-# Import command modules to register them
-# from .. import commands  # noqa: F401
 from ..settings import LoggingConfig, settings
+
+load_dotenv()  # take environment variables
 
 
 def setup_logging(config: LoggingConfig) -> None:

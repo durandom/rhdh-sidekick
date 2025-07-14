@@ -8,7 +8,7 @@ documentation knowledge base using the Agno framework with LanceDB vector storag
 import asyncio
 from pathlib import Path
 
-from agno.embedder.openai import OpenAIEmbedder
+from agno.embedder.google import GeminiEmbedder
 from agno.knowledge.markdown import MarkdownKnowledgeBase
 from agno.vectordb.lancedb import LanceDb, SearchType
 from loguru import logger
@@ -58,10 +58,7 @@ class KnowledgeManager:
                 uri=str(self.vector_db_path),
                 table_name=self.table_name,
                 search_type=SearchType.hybrid,
-                embedder=OpenAIEmbedder(
-                    id="text-embedding-3-small",
-                    dimensions=1536,
-                ),
+                embedder=GeminiEmbedder(),
             )
             logger.debug(f"LanceDB created: {self.vector_db_path}/{self.table_name}")
         return self._vector_db
