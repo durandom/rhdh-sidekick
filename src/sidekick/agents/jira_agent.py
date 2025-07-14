@@ -1,9 +1,9 @@
 """
-Jira integration agent for fetching ticket information.
+Generic Jira integration agent for interactive ticket processing.
 
 This module implements an AI agent using the Agno framework that can interact
-with Jira to fetch ticket details and extract relevant information.
-Supports both JiraTools and MCP Atlassian server integration.
+with Jira in a conversational manner. Supports both JiraTools and MCP Atlassian
+server integration with interactive question loops.
 """
 
 import uuid
@@ -23,13 +23,13 @@ from sidekick.tools.jira import JiraIssueData, jira_get_issue, jira_search_issue
 
 
 class JiraAgent:
-    """AI-powered Jira agent using Agno framework for ticket processing."""
+    """AI-powered Jira agent using Agno framework for interactive ticket processing."""
 
     def __init__(
         self,
         storage_path: Path | None = None,
         user_id: str | None = None,
-        use_mcp: bool = True,
+        use_mcp: bool = False,
         use_structured_output: bool = False,
     ):
         """
@@ -38,7 +38,7 @@ class JiraAgent:
         Args:
             storage_path: Path for agent session storage
             user_id: Optional user ID for session management
-            use_mcp: Whether to use MCP Atlassian server (True) or JiraTools (False)
+            use_mcp: Whether to use MCP Atlassian server (True) or JiraTools (False, default)
             use_structured_output: Whether to use structured output with response_model (False by default)
         """
         # Default storage path
@@ -169,19 +169,21 @@ class JiraAgent:
                 tools = [self._mcp_tools]
 
                 instructions = [
-                    "You are a Jira ticket processing agent that extracts key information from tickets "
-                    "using MCP Atlassian server.",
-                    "When given a Jira ticket ID, fetch the ticket details and extract relevant information.",
-                    "Look for GitHub pull request URLs in the ticket description and comments.",
-                    "Extract the following information:",
-                    "- Ticket key, summary, description, status, priority",
-                    "- Components, labels, assignee, reporter",
-                    "- Any GitHub PR URLs mentioned in the ticket",
-                    "- Creation and update dates",
-                    "Return the information in a structured format that can be used for release notes generation.",
-                    "Be thorough in extracting PR links from all ticket content.",
-                    "Use the available MCP tools to interact with Jira.",
-                    "Use jira_get_issue to fetch the ticket details.",
+                    "You are a helpful Jira assistant that can interact with Jira tickets and issues using MCP "
+                    "Atlassian server.",
+                    "You can help with various Jira-related tasks including:",
+                    "- Fetching ticket details and information",
+                    "- Searching for tickets based on criteria",
+                    "- Analyzing ticket content and relationships",
+                    "- Extracting specific information from tickets",
+                    "- Answering questions about ticket status, progress, and details",
+                    "- Finding GitHub PR links or other references in tickets",
+                    "When users ask questions about tickets, use the available Jira tools to gather the necessary "
+                    "information.",
+                    "Be conversational and helpful in your responses.",
+                    "Use jira_get_issue to fetch specific ticket details.",
+                    "Use jira_search to find tickets based on criteria.",
+                    "Always provide clear, structured responses based on the ticket data you retrieve.",
                 ]
             else:
                 # Use custom Jira tools
@@ -190,23 +192,26 @@ class JiraAgent:
                 tools = [jira_get_issue, jira_search_issues]
 
                 instructions = [
-                    "You are a Jira ticket processing agent that extracts key information from tickets.",
-                    "When given a Jira ticket ID, fetch the ticket details and extract relevant information.",
-                    "Look for GitHub pull request URLs in the ticket description and comments.",
-                    "Extract the following information:",
-                    "- Ticket key, summary, description, status, priority",
-                    "- Components, labels, assignee, reporter",
-                    "- Any GitHub PR URLs mentioned in the ticket",
-                    "- Creation and update dates",
-                    "Return the information in a structured format that can be used for release notes generation.",
-                    "Be thorough in extracting PR links from all ticket content.",
-                    "Use the available Jira tools to interact with Jira.",
-                    "Use jira_get_issue to fetch the ticket details.",
+                    "You are a helpful Jira assistant that can interact with Jira tickets and issues using custom Jira "
+                    "tools.",
+                    "You can help with various Jira-related tasks including:",
+                    "- Fetching ticket details and information",
+                    "- Searching for tickets based on criteria",
+                    "- Analyzing ticket content and relationships",
+                    "- Extracting specific information from tickets",
+                    "- Answering questions about ticket status, progress, and details",
+                    "- Finding GitHub PR links or other references in tickets",
+                    "When users ask questions about tickets, use the available Jira tools to gather the necessary "
+                    "information.",
+                    "Be conversational and helpful in your responses.",
+                    "Use jira_get_issue to fetch specific ticket details.",
+                    "Use jira_search_issues to find tickets based on criteria.",
+                    "Always provide clear, structured responses based on the ticket data you retrieve.",
                 ]
 
             # Create the agent with optional structured output
             agent_kwargs = {
-                "name": "Jira Ticket Processor",
+                "name": "Jira Assistant",
                 "model": Gemini(id="gemini-2.0-flash"),
                 "instructions": instructions,
                 "tools": tools,
@@ -232,12 +237,12 @@ class JiraAgent:
             self._initialized = False
             raise RuntimeError(f"Jira agent initialization failed: {e}") from e
 
-    async def fetch_ticket(self, ticket_id: str, session_id: str | None = None) -> RunResponse:
+    async def ask(self, question: str, session_id: str | None = None) -> RunResponse:
         """
-        Fetch and process a Jira ticket.
+        Ask the Jira agent a question.
 
         Args:
-            ticket_id: Jira ticket ID (e.g., PROJ-123)
+            question: The question to ask the agent
             session_id: Optional session ID to use for this request
 
         Returns:
@@ -256,8 +261,39 @@ class JiraAgent:
         elif self._session_id is None:
             self.create_session()
 
-        logger.debug(f"Fetching Jira ticket: '{ticket_id}' with session_id={self._session_id}")
+        logger.debug(f"Asking Jira agent: '{question}' with session_id={self._session_id}")
 
+        try:
+            # Get response from agent
+            if self.use_mcp and self._mcp_tools:
+                # Use MCP tools as context manager
+                async with self._mcp_tools:
+                    response = await self._agent.arun(
+                        question, stream=False, session_id=self._session_id, user_id=self.user_id
+                    )
+            else:
+                # Use traditional tools
+                response = self._agent.run(question, stream=False, session_id=self._session_id, user_id=self.user_id)
+
+            logger.info(f"Jira agent response received for question: {question[:50]}...")
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to process question: {e}")
+            raise RuntimeError(f"Question processing failed: {e}") from e
+
+    async def fetch_ticket(self, ticket_id: str, session_id: str | None = None) -> RunResponse:
+        """
+        Fetch and process a Jira ticket.
+
+        Args:
+            ticket_id: Jira ticket ID (e.g., PROJ-123)
+            session_id: Optional session ID to use for this request
+
+        Returns:
+            RunResponse from the agent
+        """
         # Create the prompt for the agent
         prompt = f"""
         Please fetch and analyze the Jira ticket {ticket_id}.
@@ -272,25 +308,7 @@ class JiraAgent:
         Return the information in a structured format that includes all the extracted data.
         """
 
-        try:
-            # Get response from agent
-            if self.use_mcp and self._mcp_tools:
-                # Use MCP tools as context manager
-                async with self._mcp_tools:
-                    response = await self._agent.arun(
-                        prompt, stream=False, session_id=self._session_id, user_id=self.user_id
-                    )
-            else:
-                # Use traditional tools
-                response = self._agent.run(prompt, stream=False, session_id=self._session_id, user_id=self.user_id)
-
-            logger.info(f"Jira agent response received for ticket {ticket_id}")
-
-            return response
-
-        except Exception as e:
-            logger.error(f"Failed to fetch ticket {ticket_id}: {e}")
-            raise RuntimeError(f"Ticket fetch failed: {e}") from e
+        return await self.ask(prompt, session_id)
 
     def extract_pr_links(self, ticket_id: str) -> list[str]:
         """
