@@ -5,6 +5,7 @@ This module defines the main CLI application and registers all command groups.
 """
 
 import contextlib
+import os
 import sys
 from pathlib import Path
 
@@ -132,6 +133,7 @@ def main(
         settings.log_level = log_level.upper()
     elif verbose > 0:
         settings.log_level = level_map.get(verbose, "TRACE")
+        os.environ["AGNO_DEBUG"] = "true"
 
     if log_file:
         settings.log_file = log_file
