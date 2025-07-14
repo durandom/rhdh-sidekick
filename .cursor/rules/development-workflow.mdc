@@ -1,5 +1,5 @@
 ---
-description: Development workflow commands and processes for b4cli project
+description: Development workflow commands and processes for sidekick project
 globs:
 alwaysApply: true
 ---
@@ -17,10 +17,10 @@ alwaysApply: true
 - Skip slow tests: `uv run pytest -m "not slow"`
 
 ## Application Commands
-- Run CLI: `uv run b4cli`
-- Debug logging: `uv run b4cli -v example hello`
-- Trace logging: `uv run b4cli -vv example config`
-- Example commands: `uv run b4cli example hello --name "Test"`, `uv run b4cli version`, `uv run b4cli info`
+- Run CLI: `uv run sidekick`
+- Debug logging: `uv run sidekick -v example hello`
+- Trace logging: `uv run sidekick -vv example config`
+- Example commands: `uv run sidekick example hello --name "Test"`, `uv run sidekick version`, `uv run sidekick info`
 
 ## Code Quality Commands
 - Linting: `uv run ruff check`
