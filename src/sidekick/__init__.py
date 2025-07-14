@@ -10,7 +10,7 @@ import sys
 from loguru import logger
 from rich.console import Console
 
-from .cli.base import setup_logging
+from .cli.app import setup_logging
 
 # Import settings and configure logging
 from .settings import settings
