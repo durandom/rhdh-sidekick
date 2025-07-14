@@ -14,7 +14,7 @@ prepare-commit:
 # Development commands
 lint:
 	@echo "🔍 Running linter..."
-	uv run ruff check --fix
+	uv run ruff check --fix --unsafe-fixes
 
 format:
 	@echo "🎨 Formatting code..."

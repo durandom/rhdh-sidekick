@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from agno.agent import Agent, RunResponse
-from agno.models.anthropic import Claude
+from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from loguru import logger
 
@@ -101,7 +101,7 @@ class SearchAgent:
             # Create the agent
             self._agent = Agent(
                 name="RHDH Search Assistant",
-                model=Claude(id="claude-sonnet-4-20250514"),
+                model=Gemini(id="gemini-2.0-flash"),
                 instructions=[
                     "Search your knowledge before answering questions.",
                     "Provide concise, helpful responses about Red Hat Developer Hub.",

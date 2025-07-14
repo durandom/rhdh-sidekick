@@ -1,9 +1,7 @@
 ### CLI Structure
 The CLI uses a modular command registry pattern:
 
-- `src/sidekick/cli/base.py` - Base classes and command registry
 - `src/sidekick/cli/app.py` - Main CLI application and command registration
-- Commands are organized in separate modules and registered via `CommandRegistry`
 
 ### Configuration Management
 - `src/sidekick/settings.py` - Centralized settings using Pydantic
