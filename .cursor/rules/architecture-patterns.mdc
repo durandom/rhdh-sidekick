@@ -1,6 +1,6 @@
 ---
 description: CLI architecture patterns and command development guidelines
-globs: src/b4cli/**/*.py
+globs: src/sidekick/**/*.py
 alwaysApply: false
 ---
 
@@ -8,18 +8,18 @@ alwaysApply: false
 
 ## CLI Structure
 - Use modular command registry pattern
-- `src/b4cli/cli/base.py` - Base classes and command registry
-- `src/b4cli/cli/app.py` - Main CLI application and command registration
-- `src/b4cli/commands.py` - Example command implementations
+- `src/sidekick/cli/base.py` - Base classes and command registry
+- `src/sidekick/cli/app.py` - Main CLI application and command registration
+- `src/sidekick/commands.py` - Example command implementations
 - Commands organized in modules and registered via `CommandRegistry`
 
 ## Configuration Management
-- Use `src/b4cli/settings.py` for centralized settings with Pydantic
+- Use `src/sidekick/settings.py` for centralized settings with Pydantic
 - Support environment variables with nested delimiter `__` (e.g., `LOGGING__LEVEL=DEBUG`)
 - Environment variables automatically override file-based configuration
 
 ## Logging Setup
-- Configure via `setup_logging()` in `src/b4cli/cli/base.py`
+- Configure via `setup_logging()` in `src/sidekick/cli/base.py`
 - Support both "pretty" (colored) and "json" formats
 - Log to console and/or file with rotation
 - Control logging level and format via settings

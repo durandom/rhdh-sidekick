@@ -1,5 +1,5 @@
 ---
-description: Logging configuration and setup for b4cli application
+description: Logging configuration and setup for sidekick application
 globs:
 alwaysApply: false
 ---
@@ -7,7 +7,7 @@ alwaysApply: false
 # Logging Configuration
 
 ## Logging Setup
-- Configure via `setup_logging()` in `src/b4cli/cli/base.py`
+- Configure via `setup_logging()` in `src/sidekick/cli/base.py`
 - Support both "pretty" (colored) and "json" formats
 - Log to console and/or file with rotation
 - Control logging level and format via settings
@@ -15,17 +15,17 @@ alwaysApply: false
 ## Logging Examples
 ```bash
 # Environment variables
-LOG_LEVEL=DEBUG uv run b4cli example hello
+LOG_LEVEL=DEBUG uv run sidekick example hello
 
 # CLI options
-uv run b4cli -v example hello              # DEBUG level
-uv run b4cli -vv example config            # TRACE level
-uv run b4cli --log-level=TRACE example hello
+uv run sidekick -v example hello              # DEBUG level
+uv run sidekick -vv example config            # TRACE level
+uv run sidekick --log-level=TRACE example hello
 ```
 
 ## Log Locations
-- **Test logs**: `logs/test-b4cli.log` (automatic during pytest)
-- **Application logs**: `logs/b4cli.log` (when configured)
+- **Test logs**: `logs/test-sidekick.log` (automatic during pytest)
+- **Application logs**: `logs/sidekick.log` (when configured)
 - **Custom logs**: User-specified via CLI or environment variables
 
 ## Logging Configuration

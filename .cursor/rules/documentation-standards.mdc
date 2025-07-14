@@ -10,7 +10,7 @@ alwaysApply: false
 - Use `pdoc` for API documentation generation from Python source
 - **Strictly use Google Style Docstrings** for all code elements
 - Document public variables using PEP 224 docstrings or `#:` doc-comments
-- Generated documentation located in `docs/b4cli/`
+- Generated documentation located in `docs/sidekick/`
 - Target audience: developers and LLMs
 
 ## Google Style Docstring Format
