@@ -1,63 +1,64 @@
 """
-Unit tests for example commands.
+Unit tests for CLI commands.
 
-This module demonstrates how to test CLI commands and command groups.
+This module tests the actual CLI commands defined in the application.
 """
 
 from typer.testing import CliRunner
 
-from sidekick.commands import ExampleCommands
+from sidekick.cli.app import app
 
 
-class TestExampleCommands:
-    """Test cases for ExampleCommands."""
+class TestCLICommands:
+    """Test cases for CLI commands."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.runner = CliRunner()
-        self.commands = ExampleCommands()
-        self.app = self.commands.create_app()
 
-    def test_hello_default(self):
-        """Test hello command with default parameters."""
-        result = self.runner.invoke(self.app, ["hello"])
+    def test_version_command(self):
+        """Test version command displays version information."""
+        result = self.runner.invoke(app, ["version"])
         assert result.exit_code == 0
-        assert "Hello, World!" in result.stdout
-
-    def test_hello_with_name(self):
-        """Test hello command with custom name."""
-        result = self.runner.invoke(self.app, ["hello", "--name", "Alice"])
-        assert result.exit_code == 0
-        assert "Hello, Alice!" in result.stdout
-
-    def test_hello_with_count(self):
-        """Test hello command with multiple greetings."""
-        result = self.runner.invoke(self.app, ["hello", "--count", "3"])
-        assert result.exit_code == 0
-        assert result.stdout.count("Hello, World!") == 3
-        assert "(1/3)" in result.stdout
-        assert "(2/3)" in result.stdout
-        assert "(3/3)" in result.stdout
-
-    def test_config_command(self):
-        """Test config command displays configuration."""
-        result = self.runner.invoke(self.app, ["config"])
-        assert result.exit_code == 0
-        assert "Current Configuration" in result.stdout
         assert "sidekick" in result.stdout
+        assert "0.1.0" in result.stdout
 
-    def test_demo_error_command(self):
-        """Test demo-error command handles errors properly."""
-        result = self.runner.invoke(self.app, ["demo-error"])
-        assert result.exit_code == 1
-        assert "Cannot divide by zero" in result.stdout
+    def test_info_command(self):
+        """Test info command displays application information."""
+        result = self.runner.invoke(app, ["info"])
+        assert result.exit_code == 0
+        assert "sidekick" in result.stdout
+        assert "Typer" in result.stdout
+        assert "Rich" in result.stdout
+        assert "Pydantic" in result.stdout
 
     def test_help_messages(self):
         """Test that commands provide helpful help text."""
-        result = self.runner.invoke(self.app, ["--help"])
+        result = self.runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "Example commands demonstrating CLI patterns" in result.stdout
+        assert "sidekick" in result.stdout
 
-        result = self.runner.invoke(self.app, ["hello", "--help"])
+        result = self.runner.invoke(app, ["version", "--help"])
         assert result.exit_code == 0
-        assert "Say hello with customizable greeting" in result.stdout
+        assert "Show version information" in result.stdout
+
+        result = self.runner.invoke(app, ["info", "--help"])
+        assert result.exit_code == 0
+        assert "Show application information" in result.stdout
+
+        result = self.runner.invoke(app, ["search", "--help"])
+        assert result.exit_code == 0
+        assert "Search query string" in result.stdout
+
+    def test_verbose_options(self):
+        """Test verbose logging options."""
+        result = self.runner.invoke(app, ["-v", "version"])
+        assert result.exit_code == 0
+
+        result = self.runner.invoke(app, ["-vv", "version"])
+        assert result.exit_code == 0
+
+    def test_log_level_option(self):
+        """Test log level option."""
+        result = self.runner.invoke(app, ["--log-level", "DEBUG", "version"])
+        assert result.exit_code == 0

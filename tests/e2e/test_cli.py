@@ -18,7 +18,8 @@ class TestCLI:
         result = runner.invoke(app, ["--help"])
 
         assert result.exit_code == 0
-        assert "sidekick - Modern Python CLI application template" in result.stdout
+        assert "sidekick" in result.stdout
+        assert "Commands" in result.stdout
 
     def test_version_command(self):
         """Test version command."""
@@ -32,22 +33,6 @@ class TestCLI:
         assert "0.1" in result.stdout
         assert "0" in result.stdout
 
-    def test_example_commands_available(self):
-        """Test that example commands are available."""
-        runner = CliRunner()
-        result = runner.invoke(app, ["example", "--help"])
-
-        assert result.exit_code == 0
-        assert "Example commands demonstrating CLI patterns" in result.stdout
-
-    def test_example_hello_command(self):
-        """Test example hello command works end-to-end."""
-        runner = CliRunner()
-        result = runner.invoke(app, ["example", "hello", "--name", "Template"])
-
-        assert result.exit_code == 0
-        assert "Hello, Template!" in result.stdout
-
     def test_info_command(self):
         """Test info command."""
         runner = CliRunner()
@@ -56,3 +41,12 @@ class TestCLI:
         assert result.exit_code == 0
         assert "sidekick" in result.stdout
         assert "Modern Python CLI Application Template" in result.stdout
+
+    def test_verbose_options(self):
+        """Test verbose logging options."""
+        runner = CliRunner()
+        result = runner.invoke(app, ["-v", "version"])
+        assert result.exit_code == 0
+
+        result = runner.invoke(app, ["-vv", "version"])
+        assert result.exit_code == 0

@@ -4,18 +4,94 @@ Main CLI application with command groups.
 This module defines the main CLI application and registers all command groups.
 """
 
+import contextlib
+import sys
 from pathlib import Path
 
 import typer
+from agno.utils.pprint import pprint_run_response
+from loguru import logger
 from rich.console import Console
 
-# Import command modules to register them
-from .. import commands  # noqa: F401
-from ..settings import settings
-from .base import command_registry, setup_logging
+from ..agents import SearchAgent
 
-# Create main app
-app = command_registry.create_main_app()
+# Import command modules to register them
+# from .. import commands  # noqa: F401
+from ..settings import LoggingConfig, settings
+
+
+def setup_logging(config: LoggingConfig) -> None:
+    """Configure logging based on settings with enhanced functionality."""
+    # Remove default handler
+    logger.remove()
+
+    # Add custom TRACE level if enabled and not already exists
+    if config.trace_enabled:
+        # TRACE level already exists, which is fine
+        with contextlib.suppress(ValueError):
+            logger.level("TRACE", no=5, color="<dim>", icon="🔍")
+
+    # Determine effective log level
+    level = config.level.upper()
+    if level == "TRACE" and not config.trace_enabled:
+        level = "DEBUG"  # Fallback if TRACE not enabled
+
+    # Configure format based on settings
+    if config.format == "json":
+        format_str = (
+            '{"time":"{time:YYYY-MM-DD HH:mm:ss}", "level":"{level}", '
+            '"name":"{name}", "function":"{function}", "line":{line}, '
+            '"message":"{message}"}'
+        )
+    else:
+        # Enhanced pretty format with better spacing
+        format_str = (
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>"
+        )
+
+    # Add console handler (stderr by default)
+    logger.add(
+        sys.stderr,
+        format=format_str,
+        level=level,
+        colorize=config.format == "pretty",
+        backtrace=True,
+        diagnose=True,
+    )
+
+    # Add file handler if specified or in pytest mode
+    if config.file:
+        # Create logs directory if it doesn't exist
+        log_path = config.file
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        logger.add(
+            log_path,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+            level=level,
+            rotation="10 MB",
+            retention="1 week",
+            backtrace=True,
+            diagnose=True,
+        )
+
+        # Log the file location for pytest mode
+        if config.pytest_mode:
+            logger.info(f"Pytest mode: Logging to {log_path}")
+
+    # Log configuration info
+    logger.debug(
+        f"Logging configured: level={level}, format={config.format}, "
+        f"file={config.file}, pytest_mode={config.pytest_mode}"
+    )
+
+
+app = typer.Typer(
+    help="sidekick",
+    add_completion=False,
+    rich_markup_mode="rich",
+)
 
 # Add global options and commands
 console = Console()
@@ -84,6 +160,20 @@ def info() -> None:
     console.print("[bold blue]sidekick[/bold blue] - Modern Python CLI Application Template")
     console.print("Built with [bold]Typer[/bold], [bold]Rich[/bold], and [bold]Pydantic[/bold]")
     console.print("Type [bold]--help[/bold] for available commands")
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query string"),
+) -> None:
+    """Search for items matching the query using AI-powered RAG."""
+    logger.debug(f"Search command called with query={query}")
+
+    # Use AI agent for search
+    agent = SearchAgent()
+    response = agent.search(query)
+
+    pprint_run_response(response, markdown=True, show_time=True)
 
 
 if __name__ == "__main__":

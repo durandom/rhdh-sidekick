@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from loguru import logger
 
-from sidekick.cli.base import setup_logging
+from sidekick.cli.app import setup_logging
 from sidekick.settings import LoggingConfig
 
 
