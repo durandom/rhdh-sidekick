@@ -5,6 +5,7 @@ This module implements an AI agent using the Agno framework that can search
 through the RHDH documentation knowledge base and provide intelligent responses.
 """
 
+import uuid
 from pathlib import Path
 
 from agno.agent import Agent, RunResponse
@@ -22,6 +23,7 @@ class SearchAgent:
         self,
         knowledge_path: Path | None = None,
         storage_path: Path | None = None,
+        user_id: str | None = None,
     ):
         """
         Initialize the search agent.
@@ -29,17 +31,51 @@ class SearchAgent:
         Args:
             knowledge_path: Path to knowledge documents directory
             storage_path: Path for agent session storage
+            user_id: Optional user ID for session management
         """
         # Default storage path
         if storage_path is None:
             storage_path = Path("tmp/agent.db")
 
         self.storage_path = storage_path
+        self.user_id = user_id
         self.knowledge_manager = KnowledgeManager(knowledge_path=knowledge_path)
         self._agent: Agent | None = None
         self._initialized = False
+        self._session_id: str | None = None
 
-        logger.debug(f"SearchAgent initialized: storage_path={storage_path}")
+        logger.debug(f"SearchAgent initialized: storage_path={storage_path}, user_id={user_id}")
+
+    def _generate_session_id(self) -> str:
+        """Generate a new session ID using UUID."""
+        return str(uuid.uuid4())
+
+    def create_session(self, user_id: str | None = None) -> str:
+        """
+        Create a new session for the agent.
+
+        Args:
+            user_id: Optional user ID to override the instance user_id
+
+        Returns:
+            The generated session ID
+        """
+        if user_id is not None:
+            self.user_id = user_id
+
+        self._session_id = self._generate_session_id()
+
+        logger.info(f"Created new session: session_id={self._session_id}, user_id={self.user_id}")
+        return self._session_id
+
+    def get_current_session(self) -> str | None:
+        """
+        Get the current session ID.
+
+        Returns:
+            Current session ID or None if no session exists
+        """
+        return self._session_id
 
     def initialize(self) -> None:
         """Initialize the agent and knowledge base (lazy loading)."""
@@ -89,12 +125,13 @@ class SearchAgent:
             self._initialized = False
             raise RuntimeError(f"Agent initialization failed: {e}") from e
 
-    def search(self, query: str) -> RunResponse:
+    def search(self, query: str, session_id: str | None = None) -> RunResponse:
         """
         Search using the AI agent and format response for CLI display.
 
         Args:
             query: Search query string
+            session_id: Optional session ID to use for this search
 
         Returns:
             Formatted search result string
@@ -106,9 +143,15 @@ class SearchAgent:
         if self._agent is None:
             raise RuntimeError("Agent not properly initialized")
 
-        logger.debug(f"Processing search query: '{query}'")
+        # Use provided session_id or create new session if none exists
+        if session_id is not None:
+            self._session_id = session_id
+        elif self._session_id is None:
+            self.create_session()
+
+        logger.debug(f"Processing search query: '{query}' with session_id={self._session_id}")
 
         # Get response from agent
-        response = self._agent.run(query, stream=False)
+        response = self._agent.run(query, stream=False, session_id=self._session_id, user_id=self.user_id)
 
         return response
