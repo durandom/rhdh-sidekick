@@ -48,6 +48,24 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }
+        },
+        {
+            "name": "Debug sidekick release-notes generate",
+            "type": "python",
+            "request": "launch",
+            "module": "sidekick.cli.app",
+            "args": [
+                "-vv",
+                "release-notes",
+                "generate",
+                "RHIDP-3568"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }

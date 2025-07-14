@@ -7,7 +7,7 @@ license = { text = "CC-BY-NC-4.0" }
 authors = [
     { name = "Marcel Hild", email = "hild@b4mad.net" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "loguru>=0.7.3", # Modern logging
     "pydantic>=2.11.5", # Data validation and settings
@@ -36,6 +36,8 @@ dependencies = [
     "pytest-bdd>=8.1.0",
     "unstructured>=0.18.5",
     "markdown>=3.8.2",
+    "jira>=3.8.0",
+    "mcp>=1.11.0",
 ]
 
 [project.scripts]
@@ -103,17 +105,17 @@ exclude_lines = [
 # Development dependencies
 [dependency-groups]
 dev = [
-    "ruff>=0.11.12", # Linting and formatting
-    "pytest>=8.4.0", # Testing framework
-    "pytest-asyncio>=1.0.0", # Async testing support
-    "pytest-cov>=6.1.1", # Coverage reporting
-    "pre-commit>=3.0.0", # Git hooks
-    "mypy>=1.16.1",
+    "ruff==0.11.12", # Linting and formatting
+    "pytest==8.4.0", # Testing framework
+    "pytest-asyncio==1.0.0", # Async testing support
+    "pytest-cov==6.1.1", # Coverage reporting
+    "pre-commit==3.0.0", # Git hooks
+    "mypy==1.16.1",
 ]
 docs = [
-    "pdoc>=14.0.0",           # API documentation
-    "mkdocs>=1.5.0",          # Documentation site
-    "mkdocs-material>=9.0.0", # Material theme
+    "pdoc==14.0.0",           # API documentation
+    "mkdocs==1.5.0",          # Documentation site
+    "mkdocs-material==9.0.0", # Material theme
 ]
 
 # MyPy configuration

@@ -18,8 +18,9 @@ from rich.prompt import Prompt
 
 from ..agents import SearchAgent
 from ..settings import LoggingConfig, settings
+from .release_notes import release_notes_app
 
-load_dotenv()  # take environment variables
+load_dotenv(verbose=True)  # take environment variables
 
 
 def setup_logging(config: LoggingConfig) -> None:
@@ -94,6 +95,9 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
 )
+
+# Register sub-applications
+app.add_typer(release_notes_app)
 
 # Add global options and commands
 console = Console()
