@@ -1,10 +1,17 @@
-# sidekick - Modern Python CLI Application
+# RHDH Sidekick - Local Engineering Assistant
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A modern Python CLI application with AI-powered search capabilities built with Typer, Rich, and Pydantic.
+A locally-running agentic system designed to act as your personal engineering assistant. RHDH Sidekick integrates with your existing tools (GitHub, Jira, codebase) to help automate routine development tasks without requiring context switches to chat interfaces.
+
+**Current Features:**
+- AI-powered knowledge search with RAG capabilities
+- Automated release notes generation from Jira tickets and GitHub PRs
+- Interactive conversational interfaces for iterative refinement
+
+**Planned Features:** Daily standup prep, PR review assistance, Jira maintenance, documentation updates, dynamic plugin configuration, and CI/CD flake analysis.
 
 ## 🚀 Setup
 
