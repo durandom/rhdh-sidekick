@@ -43,7 +43,6 @@ cp .env.example .env
 ```bash
 # JIRA Configuration (required for release notes)
 JIRA_SERVER_URL=https://your-jira-instance.com
-JIRA_USERNAME=your-username
 JIRA_TOKEN=your-jira-api-token
 
 # GitHub Configuration (required for release notes)
