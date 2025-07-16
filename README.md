@@ -9,6 +9,7 @@ A locally-running agentic system designed to act as your personal engineering as
 **Current Features:**
 - AI-powered knowledge search with RAG capabilities
 - Automated release notes generation from Jira tickets and GitHub PRs
+- Automated test failure analysis for Playwright tests from Prow CI
 - Interactive conversational interfaces for iterative refinement
 
 **Planned Features:** Daily standup prep, PR review assistance, Jira maintenance, documentation updates, dynamic plugin configuration, and CI/CD flake analysis.
@@ -130,6 +131,59 @@ uv run sidekick release-notes generate PROJ-123
    - Proper markdown or text formatting
 
 > **Note**: The release notes generator is based on work from [dzemanov/release-notes-generator](https://gitlab.cee.redhat.com/dzemanov/release-notes-generator) ([GitHub](https://github.com/dzemanov)).
+
+## 🔍 Test Analysis
+
+The test analysis feature provides AI-powered root cause analysis for Playwright test failures from Prow CI logs. It automatically analyzes test artifacts including JUnit XML files, screenshots, and pod logs to identify the cause of test failures.
+
+### Usage
+
+```bash
+# Analyze a specific Prow CI test failure
+uv run sidekick test-analysis "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/..."
+
+# Interactive mode with follow-up questions
+uv run sidekick test-analysis "prow-link" --interactive
+```
+
+### How It Works
+
+1. **Extracts test artifacts** from Prow CI logs stored in Google Cloud Storage
+2. **Parses JUnit XML files** to identify failed test cases and extract failure messages
+3. **Analyzes screenshots** using AI vision to understand visual test failures
+4. **Reviews pod logs** and build logs for additional context
+5. **Provides comprehensive root cause analysis** with:
+   - Clear explanation of what went wrong
+   - Visual confirmation from screenshots when available
+   - Specific failure points from logs
+   - Actionable insights for fixing the issues
+
+### Interactive Follow-up
+
+After initial analysis, you can ask follow-up questions:
+
+```bash
+# After initial analysis, you can ask:
+# - "Can you explain the screenshot in more detail?"
+# - "What logs should I check for more information?"
+# - "How can I reproduce this failure locally?"
+# - "What are the most common causes of this type of failure?"
+```
+
+### Features
+
+- **Multi-format Analysis**: Supports JUnit XML, screenshots (PNG/JPG), and various log formats
+- **Visual Confirmation**: AI-powered screenshot analysis to understand UI-related failures
+- **Comprehensive Coverage**: Analyzes test results, pod logs, and build logs
+- **Interactive Mode**: Conversational interface for deeper investigation
+- **Cloud Integration**: Direct access to Prow CI artifacts in Google Cloud Storage
+
+### Prerequisites
+
+- Google Cloud Storage access credentials for Prow CI artifacts
+- Prow CI link with test failure information
+
+> **Note**: The test analysis feature is built on the TestTriage project by [subhashkhileri](https://github.com/subhashkhileri/TestTriage).
 
 ## Other Commands
 
