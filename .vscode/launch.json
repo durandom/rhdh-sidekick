@@ -66,6 +66,24 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }
+        },
+        {
+            "name": "Debug sidekick test-analysis",
+            "type": "python",
+            "request": "launch",
+            "module": "sidekick.cli.app",
+            "args": [
+                "-vv",
+                "test-analysis",
+                "analyze",
+                "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }
