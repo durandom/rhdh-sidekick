@@ -7,11 +7,14 @@ This module provides CLI commands for analyzing test failures from Prow CI logs.
 from pathlib import Path
 
 import typer
+from agno.agent import RunResponse
+from agno.team import TeamRunResponse
 from agno.utils.pprint import pprint_run_response
 from loguru import logger
 from rich.console import Console
 from rich.prompt import Prompt
 
+from ..agents.test_analysis_agent import TestAnalysisAgent
 from ..teams.test_analysis_team import TestAnalysisTeam
 from ..utils.test_analysis import TestArtifactDownloader
 
@@ -37,6 +40,12 @@ def analyze(
         "--cache-dir",
         "-c",
         help="Use existing downloaded artifacts from this directory (from previous download command)",
+    ),
+    agent: bool = typer.Option(
+        False,
+        "--agent",
+        "-a",
+        help="Use the single agent instead of the team for analysis",
     ),
 ) -> None:
     """
@@ -67,19 +76,30 @@ def analyze(
     logger.debug(f"Test analysis called with prow_link={prow_link}")
 
     try:
-        # Initialize the test analysis team
-        # TestArtifactDownloader will handle consistent directory structure
         work_dir = Path(cache_dir) if cache_dir else None
-        team = TestAnalysisTeam(prow_link=prow_link, work_dir=work_dir)
 
-        # Analyze test failures
-        console.print("[bold blue]Analyzing test failures from prow link...[/bold blue]")
+        analyzer: TestAnalysisAgent | TestAnalysisTeam
+        if agent:
+            # Use the single agent
+            analyzer = TestAnalysisAgent(work_dir=work_dir)
+            console.print("[bold blue]Analyzing test failures using single agent...[/bold blue]")
+        else:
+            # Use the team (default behavior)
+            analyzer = TestAnalysisTeam(prow_link=prow_link, work_dir=work_dir)
+            console.print("[bold blue]Analyzing test failures using team...[/bold blue]")
+
         console.print(f"[dim]Link: {prow_link}[/dim]")
 
         if cache_dir:
             console.print(f"[dim]Using cached artifacts from: {cache_dir}[/dim]")
 
-        response = team.analyze_test_failure()
+        response: RunResponse | TeamRunResponse
+        if agent:
+            assert isinstance(analyzer, TestAnalysisAgent)
+            response = analyzer.analyze_test_failure(prow_link)
+        else:
+            assert isinstance(analyzer, TestAnalysisTeam)
+            response = analyzer.analyze_test_failure()
 
         # Display the response
         pprint_run_response(response, markdown=True, show_time=True)
@@ -99,8 +119,8 @@ def analyze(
 
             logger.debug(f"Processing follow-up query: {current_query}")
 
-            # Ask the team
-            response = team.ask(current_query)
+            # Ask the analyzer (team or agent)
+            response = analyzer.ask(current_query)
 
             # Display the response
             pprint_run_response(response, markdown=True, show_time=True)

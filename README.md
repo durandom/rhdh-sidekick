@@ -139,11 +139,18 @@ The test analysis feature provides AI-powered root cause analysis for Playwright
 ### Usage
 
 ```bash
-# Analyze a specific Prow CI test failure
-uv run sidekick test-analysis "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/..."
+# Analyze a specific Prow CI test failure using the team approach (default)
+uv run sidekick test-analysis analyze "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
 
-# Interactive mode with follow-up questions
-uv run sidekick test-analysis "prow-link" --interactive
+# Use the single agent instead of the team for analysis
+uv run sidekick test-analysis analyze --agent "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
+
+# Download artifacts first, then analyze using cached data
+uv run sidekick test-analysis download "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
+uv run sidekick test-analysis analyze "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
+
+# Show available commands and options
+uv run sidekick test-analysis --help
 ```
 
 ### How It Works
@@ -170,6 +177,22 @@ After initial analysis, you can ask follow-up questions:
 # - "What are the most common causes of this type of failure?"
 ```
 
+### Analysis Modes
+
+The test analysis feature supports two analysis modes:
+
+#### Team Mode (Default)
+- **Coordinate Mode Team**: Uses specialized agents for different types of analysis
+- **Screenshot Analyzer**: Dedicated agent for visual evidence analysis
+- **Log Analyzer**: Specialized agent for JUnit XML, build logs, and pod logs
+- **Team Leader**: Coordinates analysis and synthesizes findings from all agents
+- **Best for**: Complex failures requiring multiple perspectives and comprehensive analysis
+
+#### Agent Mode (`--agent`)
+- **Single Agent**: Uses a single comprehensive agent for all analysis
+- **Unified Analysis**: Processes all artifacts (JUnit XML, screenshots, logs) in one pass
+- **Best for**: Faster analysis or when you prefer a single analytical perspective
+
 ### Features
 
 - **Multi-format Analysis**: Supports JUnit XML, screenshots (PNG/JPG), and various log formats
@@ -177,6 +200,7 @@ After initial analysis, you can ask follow-up questions:
 - **Comprehensive Coverage**: Analyzes test results, pod logs, and build logs
 - **Interactive Mode**: Conversational interface for deeper investigation
 - **Cloud Integration**: Direct access to Prow CI artifacts in Google Cloud Storage
+- **Flexible Analysis**: Choose between team coordination or single agent analysis
 
 ### Prerequisites
 

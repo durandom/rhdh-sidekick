@@ -169,26 +169,9 @@ class TestAnalysisAgent:
 
         logger.info(f"Analyzing test failure from prow link: '{prow_link}' with session_id={self._session_id}")
 
-        # Extract base directory from prow link
-        import re
-
-        pattern = r"https://prow\.ci\.openshift\.org/view/gs/test-platform-results/(logs/[^|>\s/]+(?:/[^|>\s/]+)*)"
-        match = re.search(pattern, prow_link)
-
-        if not match:
-            return self._agent.run(
-                f"Invalid prow link format: {prow_link}. Please provide a valid prow link in the format: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
-                stream=False,
-                session_id=self._session_id,
-                user_id=self.user_id,
-            )
-
-        base_dir = match.group(1)
-        logger.info(f"Extracted base directory: {base_dir}")
-
-        # Pre-download all artifacts
+        # Pre-download all artifacts using TestArtifactDownloader
         try:
-            downloader = TestArtifactDownloader(base_dir, str(self.work_dir))
+            downloader = TestArtifactDownloader(prow_link, str(self.work_dir))
             artifacts = downloader.download_all_artifacts()
             logger.info(
                 f"Downloaded artifacts: {len(artifacts['junit_files'])} JUnit files, "
@@ -197,7 +180,7 @@ class TestAnalysisAgent:
             )
 
             # Generate analysis prompt with pre-downloaded content
-            analysis_prompt = self._generate_analysis_prompt(prow_link, base_dir, artifacts)
+            analysis_prompt = self._generate_analysis_prompt(prow_link, downloader.base_dir, artifacts)
 
             # Collect all images for the agent
             all_images: list[Image] = []
@@ -217,14 +200,15 @@ class TestAnalysisAgent:
             # Get response from agent with images
             response = self._agent.run(
                 analysis_prompt,
-                images=all_images if all_images else None,
+                # provide only the first image for initial analysis
+                images=all_images[:1] if all_images else None,
                 stream=False,
                 session_id=self._session_id,
                 user_id=self.user_id,
             )
 
             # Clean up downloaded files
-            downloader.cleanup()
+            # downloader.cleanup()
 
             return response
 
@@ -271,7 +255,7 @@ You are analyzing test failures with the following pre-downloaded artifacts:
         # Add pod logs
         if artifacts["pod_logs"]:
             prompt_parts.append("\n## Pod Logs\n")
-            for _gcs_path, local_path in artifacts["pod_logs"].items():
+            for local_path in artifacts["pod_logs"].values():
                 try:
                     with open(local_path) as f:
                         content = f.read()
@@ -283,7 +267,7 @@ You are analyzing test failures with the following pre-downloaded artifacts:
         if artifacts["screenshots"]:
             prompt_parts.append("\n## Screenshots\n")
             screenshot_count = 0
-            for gcs_path, _local_path in artifacts["screenshots"].items():
+            for gcs_path in artifacts["screenshots"]:
                 screenshot_count += 1
                 prompt_parts.append(f"- Screenshot {screenshot_count}: {gcs_path}\n")
 
