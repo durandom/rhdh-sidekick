@@ -76,7 +76,7 @@
                 "-vv",
                 "test-analysis",
                 "analyze",
-                "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/pull/123/test-run-456"
+                "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-redhat-developer-rhdh-release-1.6-e2e-tests-gke-helm-nightly/1928330772180111360"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
