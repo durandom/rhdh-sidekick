@@ -276,3 +276,6 @@ performance_artifacts/
 # Claude Code
 .claude/settings.local.json
 .mcp.json
+
+# Downloaded files
+downloads/
