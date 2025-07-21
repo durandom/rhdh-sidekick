@@ -40,6 +40,10 @@ dependencies = [
     "jira>=3.8.0",
     "mcp>=1.11.0",
     "pygithub>=2.6.1",
+    "html2text>=2025.4.15",
+    "google-auth-oauthlib>=1.2.2",
+    "google-api-python-client>=2.176.0",
+    "google-auth-httplib2>=0.2.0",
 ]
 
 [project.scripts]
