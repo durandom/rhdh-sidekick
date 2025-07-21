@@ -9,6 +9,7 @@ from loguru import logger
 from rich.console import Console
 from ..agents.jira_triager_agent import JiraTriagerAgent
 from ..agents.jira_knowledge import JiraKnowledgeManager
+from sidekick.tools.jira import get_jira_triager_fields
 
 console = Console()
 
@@ -20,30 +21,41 @@ jira_triager_app = typer.Typer(
 
 @jira_triager_app.command()
 def triage(
-    title: str = typer.Option(..., help="Title of the Jira ticket"),
-    description: str = typer.Option(..., help="Description of the Jira ticket"),
-    assignee: str = typer.Option("", help="Assignee (if already assigned)"),
-    component: str = typer.Option("", help="Component (if already assigned)"),
-    team: str = typer.Option("", help="Team (if already assigned)"),
-) -> None:
-    """
-    Recommend the best team/component for a Jira ticket using RAG over historical tickets.
-
-    Example:
-        sidekick jira-triager triage --title "Password reset fails" --description "Reset link returns 500 error." --component "Authentication"
-    """
-    logger.debug(f"Triage called with title={title}, description={description}, assignee={assignee}, component={component}, team={team}")
-    current_ticket = {
-        "title": title,
-        "description": description,
-        "assignee": assignee,
-        "component": component,
-        "team": team,
-    }
+    issue_id: str = typer.Argument(None, help="Jira issue ID (e.g., RHIDP-6496). If provided, fetches fields automatically."),
+    title: str = typer.Option("", help="Title of the Jira issue (overrides fetched title)"),
+    description: str = typer.Option("", help="Description of the Jira issue (overrides fetched description)"),
+    component: str = typer.Option("", help="Component (optional, overrides fetched)"),
+    team: str = typer.Option("", help="Team (optional, overrides fetched)"),
+    assignee: str = typer.Option("", help="Assignee (optional, overrides fetched)"),
+):
+    """Triage a Jira issue by ID or manual fields and recommend team/component."""
     jira_knowledge_manager = JiraKnowledgeManager()
     agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
+
+    if issue_id:
+        try:
+            fetched = get_jira_triager_fields(issue_id)
+        except Exception as e:
+            typer.echo(f"Error fetching Jira issue: {e}")
+            raise typer.Exit(1)
+        current_ticket = {
+            "title": title or fetched.get("title", ""),
+            "description": description or fetched.get("description", ""),
+            "component": component or (fetched.get("components") or [""])[0],
+            "team": team or fetched.get("team", ""),
+            "assignee": assignee or fetched.get("assignee", ""),
+        }
+    else:
+        current_ticket = {
+            "title": title,
+            "description": description,
+            "component": component,
+            "team": team,
+            "assignee": assignee,
+        }
     result = agent.triage_ticket(current_ticket)
-    console.print("[bold green]Recommended assignment:[/bold green]", result)
+    if result:
+        typer.echo(f"Recommended assignment: {result}")
 
 if __name__ == "__main__":
     jira_triager_app() 

@@ -139,7 +139,14 @@ COMPONENT_TEAM_MAP = {
 }
 
 class JiraTriagerAgent:
-    """AI-powered agent for Jira ticket triage and assignment using previous support data and RAG."""
+    """
+    AI agent for Jira ticket triage. Recommends the best team and component for a new Jira issue.
+    Takes previous support ticket data and current issue fields as input.
+    Uses RAG to find relevant historical tickets and passes them to the LLM.
+    Only assigns missing fields, using existing assigned fields as context.
+
+    CLI integration: If a Jira issue ID is provided, the CLI will fetch the issue fields automatically using get_jira_issue_fields.
+    """
 
     def __init__(
         self,
