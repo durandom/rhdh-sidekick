@@ -232,7 +232,7 @@ class JiraTriagerAgent:
                     "If the current ticket already has a component, team, or assignee, consider them when determining the best match, but override if a better match is found.",
                     "Output ONLY a JSON object with keys 'team' and 'component'.",
                     "Do NOT include any explanation, markdown, or text outside the JSON.",
-                    "Example: {\"team\": \"RHIDP - Security\", \"component\": \"authentication\"}",
+                    "Example: {\"team\": \"<team>\", \"component\": \"<component>\"}",
                 ],
                 tools=[],
                 storage=storage,
@@ -274,12 +274,11 @@ class JiraTriagerAgent:
             self.create_session()
         logger.debug(f"Triaging ticket with session_id={self._session_id}")
 
-        # Determine which fields are missing
-        missing_fields = []
-        if not current_ticket.get("team"):
-            missing_fields.append("team")
-        if not current_ticket.get("component"):
-            missing_fields.append("component")
+        # Determine which fields are missing (treat None and '' as missing)
+        missing_fields = [
+            field for field in ("team", "component")
+            if current_ticket.get(field) is None or current_ticket.get(field) == ""
+        ]
 
         if not missing_fields:
             logger.info("No fields to assign; both team and component are already set.")

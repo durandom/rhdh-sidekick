@@ -395,6 +395,40 @@ uv run sidekick gdrive debug DOCUMENT_ID
 uv run sidekick gdrive export DOCUMENT_ID --format pdf
 ```
 
+## ⚖️ Jira Triager
+
+### Usage
+
+```bash
+# Triage a Jira issue by ticket ID (fields auto-fetched)
+uv run sidekick jira-triager triage RHIDP-6496
+
+# Triage a Jira issue by manually specifying fields
+uv run sidekick jira-triager triage --title "Password reset fails" --description "Reset link returns 500 error."
+
+# Override specific fields when using a ticket ID
+uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --team ""
+```
+
+- The command will recommend the best team and component for the given Jira issue.
+- If you provide a Jira issue ID, the tool will automatically fetch the title, description, components, team, and assignee from Jira.
+- You can override any field by specifying it as an option.
+
+### How It Works
+
+1. **Fetches Jira issue details** using the provided ticket ID (if given), including summary, description, components, team, and assignee.
+2. **Retrieves historical Jira tickets** from the local knowledge base for context.
+3. **Uses AI-powered triage** to analyze the current issue in the context of past tickets, considering any existing assignments.
+4. **Recommends the most appropriate team and component** for the issue, filling in only missing fields and respecting any already-assigned values.
+5. **Outputs the recommended assignment** directly in the CLI.
+
+> The Jira triager leverages Retrieval-Augmented Generation (RAG) and a predefined list of allowed teams and components to ensure recommendations are relevant and actionable.
+
+### Future Improvements
+- When making decision, consider current assignee (if there is one) and the team they belong to
+- Feedback loop where if the found team/ component does not exist in Jira, retry the prompt
+- Apply changes to the Jira ticket automatically
+
 ## Other Commands
 
 ```bash
