@@ -279,3 +279,11 @@ performance_artifacts/
 
 # Downloaded files
 downloads/
+
+# Google OAuth credentials - NEVER commit these!
+client_secret_*.json
+credentials.json
+token.json
+token_drive.json
+tmp/credentials.json
+tmp/token*.json
