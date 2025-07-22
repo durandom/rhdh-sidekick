@@ -101,13 +101,21 @@ class SearchAgent:
             # Create the agent
             self._agent = Agent(
                 name="RHDH Search Assistant",
-                model=Gemini(id="gemini-2.0-flash"),
+                model=Gemini(id="gemini-2.5-flash"),
                 instructions=[
-                    "Search your knowledge before answering questions.",
-                    "Provide concise, helpful responses about Red Hat Developer Hub.",
-                    "If asked about Python programming or tutorials, mention relevant RHDH development content.",
-                    "Always be direct and focus on the most relevant information.",
-                    "Format responses in a clear, structured way.",
+                    "IMPORTANT: You MUST ALWAYS search your knowledge base using the "
+                    "search_knowledge_base tool before answering any question.",
+                    "Never provide an answer without first searching the knowledge base for relevant information.",
+                    "Even if you think you know the answer, you must search the knowledge "
+                    "base first to ensure accuracy and completeness.",
+                    "After searching, provide concise, helpful responses about Red Hat "
+                    "Developer Hub based on the search results.",
+                    "If the search returns no relevant results, clearly state that no "
+                    "information was found in the knowledge base.",
+                    "If asked about Python programming or tutorials, search for and mention "
+                    "relevant RHDH development content.",
+                    "Always be direct and focus on the most relevant information from your search results.",
+                    "Format responses in a clear, structured way, citing specific documents when relevant.",
                 ],
                 knowledge=knowledge,
                 storage=storage,
