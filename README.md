@@ -426,8 +426,8 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 
 ### Future Improvements
 - When making decision, consider current assignee (if there is one) and the team they belong to
-- Feedback loop where if the found team/ component does not exist in Jira, retry the prompt
-- Apply changes to the Jira ticket automatically
+- New command to apply changes to the Jira ticket automatically
+- Provide better support for RHDHSUPP issues
 
 ## Other Commands
 

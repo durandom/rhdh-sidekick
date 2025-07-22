@@ -595,34 +595,3 @@ def jira_create_issue(
         logger.error(error_msg)
         return json.dumps({"error": error_msg})
 
-
-def get_jira_triager_fields(issue_id: str) -> dict:
-    """
-    Fetch a Jira issue by ID and return its key fields as a dictionary.
-
-    Args:
-        issue_id: The Jira issue key (e.g., PROJ-123)
-
-    Returns:
-        dict with keys: title, description, components, team (if available), assignee
-    """
-    jira = _get_jira_client()
-    try:
-        issue = jira.issue(issue_id, expand="renderedFields,changelog,comments")
-    except Exception as e:
-        raise ValueError(f"Could not fetch Jira issue {issue_id}: {e}")
-
-    # Extract fields directly
-    title = getattr(issue.fields, "summary", "")
-    description = getattr(issue.fields, "description", "")
-    components = [comp.name for comp in getattr(issue.fields, "components", [])] if getattr(issue.fields, "components", None) else []
-    assignee = issue.fields.assignee.displayName if getattr(issue.fields, "assignee", None) else None
-    team = getattr(issue.fields, "customfield_12313240", None)
-
-    return {
-        "title": title,
-        "description": description,
-        "components": components,
-        "team": team,
-        "assignee": assignee,
-    }

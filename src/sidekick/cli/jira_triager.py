@@ -9,7 +9,7 @@ from loguru import logger
 from rich.console import Console
 from ..agents.jira_triager_agent import JiraTriagerAgent
 from ..agents.jira_knowledge import JiraKnowledgeManager
-from sidekick.tools.jira import get_jira_triager_fields
+from sidekick.utils.jira_client_utils import get_jira_triager_fields
 
 console = Console()
 

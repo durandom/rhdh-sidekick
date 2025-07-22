@@ -15,6 +15,7 @@ from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from loguru import logger
 from .jira_knowledge import JiraKnowledgeManager
+from sidekick.utils.jira_client_utils import get_project_component_names
 
 ALLOWED_TEAMS = [
     "RHDHPAI - DevAI",
@@ -38,104 +39,56 @@ ALLOWED_TEAMS = [
     "RHOAI Workload Orchestration",
 ]
 
-ALLOWED_COMPONENTS = [
-    # RHIDP - Cope
-    "build/release",
-    "core platform",
-    "backstage version adoption",
-    "Logging",
-    "upstream",
-    "community advocacy & support",
-    #RHIDP - Install
-    "helm chart",
-    "Operator",
-    "Corporate proxy",
-    "External database",
-    "RHDH Local",
-    # RHIDP - Security
-    "authentication",
-    "auth providers",
-    "Security",
-    "CVEs",
-    # RHIDP - Plugins
-    "plugins",
-    "Gitlab",
-    "azure plugin",
-    "bulk import",
-    "open cluster management",
-    "rbac plugin",
-    "web terminal plugin",
-    "techdocs plugin",
-    "software templates",
-    "Actions",
-    "Notification",
-    "3scale",
-    "regex-action",
-    "quay-action",
-    # RHIDP - Dynamic Plugins
-    "dynamic plugin tooling",
-    "Marketplace",
-    # RHIDP - Frontend Plugins & UI
-    "UI",
-    "Bulk import plugin",
-    "Topology Plugin",
-    # RHIDP - Documentation
-    "Documentation",
-    "UXD",
-    # RHDHPAI - UI
-    "rhdh-plugins",
-    "lightspeed",
-    "Insights",
-]
-
 COMPONENT_TEAM_MAP = {
-    # RHIDP - Cope
-    "build/release": "RHIDP - Cope",
-    "core platform": "RHIDP - Cope",
-    "backstage version adoption": "RHIDP - Cope",
-    "Logging": "RHIDP - Cope",
-    "upstream": "RHIDP - Cope",
-    "community advocacy & support": "RHIDP - Cope",
-    # RHIDP - Install
-    "helm chart": "RHIDP - Install",
-    "Operator": "RHIDP - Install",
-    "Corporate proxy": "RHIDP - Install",
-    "External database": "RHIDP - Install",
-    "RHDH Local": "RHIDP - Install",
-    # RHIDP - Security
-    "authentication": "RHIDP - Security",
-    "auth providers": "RHIDP - Security",
-    "Security": "RHIDP - Security",
-    "CVEs": "RHIDP - Security",
-    # RHIDP - Plugins
-    "plugins": "RHIDP - Plugins",
-    "Gitlab": "RHIDP - Plugins",
-    "azure plugin": "RHIDP - Plugins",
-    "bulk import": "RHIDP - Plugins",
-    "open cluster management": "RHIDP - Plugins",
-    "rbac plugin": "RHIDP - Plugins",
-    "web terminal plugin": "RHIDP - Plugins",
-    "techdocs plugin": "RHIDP - Plugins",
-    "software templates": "RHIDP - Plugins",
-    "Actions": "RHIDP - Plugins",
-    "Notification": "RHIDP - Plugins",
-    "3scale": "RHIDP - Plugins",
-    "regex-action": "RHIDP - Plugins",
-    "quay-action": "RHIDP - Plugins",
-    # RHIDP - Dynamic Plugins
-    "dynamic plugin tooling": "RHIDP - Dynamic Plugins",
-    "Marketplace": "RHIDP - Dynamic Plugins",
-    # RHIDP - Frontend Plugins & UI
-    "UI": "RHIDP - Frontend Plugins & UI",
-    "Bulk import plugin": "RHIDP - Frontend Plugins & UI",
-    "Topology Plugin": "RHIDP - Frontend Plugins & UI",
-    # RHIDP - Documentation
-    "Documentation": "RHIDP - Documentation",
-    "UXD": "RHIDP - Documentation",
-    # RHDHPAI - UI
-    "rhdh-plugins": "RHDHPAI - UI",
-    "lightspeed": "RHDHPAI - UI",
-    "Insights": "RHDHPAI - UI",
+    "3scale": ["RHIDP - Plugins"],
+    "Actions": ["RHIDP - Plugins"],
+    "AI": ["RHDHPAI - DevAI", "RHIDP - Plugin and AI"],
+    "ArgoCD Plugin": ["RHIDP - RHTAP"],
+    "Audit Log": ["RHIDP - Cope"],
+    "Authentication": ["RHIDP - Security"],
+    "Azure Container Registry plugin": ["RHIDP - Plugins"],
+    "Build": ["RHIDP - Cope"],
+    "Bulk Import Plugin": ["RHIDP - Frontend Plugins & UI", "RHIDP - Plugins"],
+    "Catalog": ["RHIDP - Cope"],
+    "Core platform": ["RHIDP - Cope"],
+    "database": ["RHIDP - Install"],
+    "Developer Hub UX": ["RHIDP - UXD"],
+    "Documentation": ["RHIDP - Documentation"],
+    "Dynamic plugins": ["RHIDP - Dynamic Plugins"],
+    "Event Module": ["RHIDP - Cope"],
+    "FIPs": ["RHIDP - Security"],
+    "Frontend Plugins & UI": ["RHIDP - Frontend Plugins & UI"],
+    "Helm Chart": ["RHIDP - Install"],
+    "Installation & Run": ["RHIDP - Install"],
+    "jfrog Artifactory": ["RHIDP - Cope"],
+    "Keycloak provider": ["RHIDP - Cope", "RHIDP - Security"],
+    "lightspeed": ["RHDHPAI - DevAI"],
+    "Localization": ["RHIDP - Frontend Plugins & UI"],
+    "Marketplace": ["RHIDP - Dynamic Plugins"],
+    "Matomo Analytics Provider Plugin": ["RHIDP - Plugins"],
+    "Notifications plugin": ["RHIDP - Plugins"],
+    "ocm": ["RHIDP - Frontend Plugins & UI", "RHIDP - Plugins"],
+    "Open Cluster Management plugin": ["RHIDP - Plugins"],
+    "Operator": ["RHIDP - Install"],
+    "Orchestrator plugin": ["RHIDP - Install"],
+    "Performance": ["RHIDP - Performance and Scaling"],
+    "Platform plugins & Backend Plugins": ["RHIDP - Plugins"],
+    "Plugins": ["RHIDP - Plugins"],
+    "Quay Actions": ["RHIDP - Plugins"],
+    "Quay Plugin": ["RHIDP - RHTAP"],
+    "Quickstart Plugin": ["RHIDP - Frontend Plugins & UI"],
+    "RBAC Plugin": ["RHIDP - Plugins", "RHIDP - Frontend Plugins & UI"],
+    "regex-actions": ["RHIDP - Plugins"],
+    "RHDH Local": ["RHIDP - Install"],
+    "Security": ["RHIDP - Security"],
+    "Software Templates": ["RHIDP - Plugins"],
+    "TechDocs": ["RHIDP - Plugins"],
+    "Tekton plugin": ["RHIDP - RHTAP"],
+    "Theme": ["RHIDP - Frontend Plugins & UI"],
+    "Topology plugin": ["RHIDP - Frontend Plugins & UI"],
+    "UI": ["RHIDP - Frontend Plugins & UI"],
+    "Upstream": ["RHIDP - Cope"],
+    "Web Terminal plugin": ["RHIDP - Plugins"],
 }
 
 class JiraTriagerAgent:
@@ -172,7 +125,7 @@ class JiraTriagerAgent:
         self._session_id: Optional[str] = None
         self.jira_knowledge_manager = jira_knowledge_manager
         self.jira_knowledge_manager.load_issues(recreate=False)
-
+        self._allowed_components = get_project_component_names("RHIDP")
         logger.debug(f"JiraTriagerAgent initialized: storage_path={storage_path}, user_id={user_id}")
 
     def _generate_session_id(self) -> str:
@@ -225,7 +178,7 @@ class JiraTriagerAgent:
                     "You are an expert Jira ticket triager.",
                     "Your job is to recommend the best team and component for a new Jira issue, based on previous support tickets.",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
-                    f"Only choose from the following components: {', '.join(ALLOWED_COMPONENTS)}.",
+                    f"Only choose from the following components: {', '.join(self._allowed_components)}.",
                     "You will be given a list of previous tickets (with title, description, component, team, assignee) and the current ticket (title, description, component, team, assignee).",
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
@@ -289,10 +242,14 @@ class JiraTriagerAgent:
         suggested_team = COMPONENT_TEAM_MAP.get(component)
         prompt_lines = [
             f"Allowed teams: {ALLOWED_TEAMS}",
-            f"Allowed components: {ALLOWED_COMPONENTS}",
+            f"Allowed components: {self._allowed_components}",
         ]
         if component and suggested_team:
-            prompt_lines.append(f"For the component '{component}', the usual owning team is '{suggested_team}'. However, use your judgment based on the ticket context.")
+            if isinstance(suggested_team, list):
+                teams_str = ", ".join(suggested_team)
+            else:
+                teams_str = str(suggested_team)
+            prompt_lines.append(f"For the component '{component}', the usual owning team(s): {teams_str}. However, use your judgment based on the ticket context.")
         prompt_lines.extend([
             "Given the current Jira ticket (as JSON):",
             f"{current_ticket}",
