@@ -44,6 +44,8 @@ dependencies = [
     "google-auth-oauthlib>=1.2.2",
     "google-api-python-client>=2.176.0",
     "google-auth-httplib2>=0.2.0",
+    "pypdf>=5.8.0",
+    "bs4>=0.0.2",
 ]
 
 [project.scripts]
