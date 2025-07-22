@@ -209,6 +209,95 @@ The test analysis feature supports two analysis modes:
 
 > **Note**: The test analysis feature is built on the TestTriage project by [subhashkhileri](https://github.com/subhashkhileri/TestTriage).
 
+## 📄 Google Drive Export
+
+The Google Drive export feature allows you to export Google Docs in various formats and maintain synchronized copies of documentation from Google Drive.
+
+### Usage
+
+```bash
+# Export a single document as HTML (default)
+uv run sidekick gdrive export 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
+
+# Export from a Google Docs URL as PDF
+uv run sidekick gdrive export "https://docs.google.com/document/d/DOCUMENT_ID/edit" -f pdf
+
+# Export multiple documents in all available formats
+uv run sidekick gdrive export doc_id_1 doc_id_2 -f all
+
+# Export with linked documents (follows links 2 levels deep)
+uv run sidekick gdrive export doc_id --follow-links --depth 2
+
+# Mirror documents from configuration file
+uv run sidekick gdrive export --mirror
+
+# Mirror with custom configuration file
+uv run sidekick gdrive export --mirror --config my-docs.txt
+```
+
+### Available Export Formats
+
+- **pdf** - Portable Document Format
+- **docx** - Microsoft Word Document
+- **odt** - OpenDocument Text
+- **rtf** - Rich Text Format
+- **txt** - Plain Text
+- **html** - HTML Document
+- **epub** - EPUB Publication
+- **zip** - ZIP Archive (contains HTML and images)
+- **all** - Export in all available formats
+
+### Mirror Mode
+
+Mirror mode automatically exports and maintains local copies of Google Drive documents based on a configuration file. This is useful for:
+- Keeping documentation in sync with Google Drive
+- Creating offline copies of important documents
+- Building knowledge bases from Google Docs
+
+The default configuration file (`knowledge/rhdh/gdrive.txt`) uses the format:
+```
+# RHDH Documentation Mirror
+# Format: URL [depth=N] [# comment]
+https://docs.google.com/document/d/ID1/edit depth=2 # Main documentation
+https://docs.google.com/document/d/ID2/edit # API reference
+```
+
+### Features
+
+- **Multiple Format Support**: Export documents in 8 different formats
+- **Link Following**: Automatically export linked documents with configurable depth
+- **Batch Export**: Process multiple documents in a single command
+- **Mirror Mode**: Maintain synchronized local copies from configuration files
+- **OAuth Authentication**: Secure access to your Google Drive documents
+- **Debug Mode**: Troubleshoot access issues with detailed information
+
+### Authentication Setup
+
+1. **Create Google Cloud Project** and enable Google Drive API
+2. **Create OAuth2 Credentials** for a desktop application
+3. **Download credentials JSON** and save it locally
+4. **Run export command** - it will open a browser for authorization on first use
+
+### Commands
+
+```bash
+# List available export formats
+uv run sidekick gdrive formats
+
+# Debug access to a specific document
+uv run sidekick gdrive debug DOCUMENT_ID
+
+# Use custom credentials file
+uv run sidekick gdrive export DOCUMENT_ID --credentials path/to/credentials.json
+```
+
+### Common Use Cases
+
+1. **Documentation Sync**: Use mirror mode to keep local copies of team documentation
+2. **Format Conversion**: Export Google Docs to PDF for distribution
+3. **Knowledge Base Building**: Export linked documents to create comprehensive documentation sets
+4. **Backup**: Create offline copies of important documents in multiple formats
+
 ## Other Commands
 
 ```bash

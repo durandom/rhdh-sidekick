@@ -13,6 +13,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+from html_to_markdown import convert_to_markdown
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,7 +42,7 @@ class GoogleDriveExporterConfig(BaseModel):
     credentials_path: Path = Field(default=Path("tmp/credentials.json"))
     token_path: Path = Field(default=Path("tmp/token_drive.json"))
     target_directory: Path = Field(default=Path("exports"))
-    export_format: Literal["pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "all"] = "html"
+    export_format: Literal["pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "md", "all"] = "html"
     link_depth: int = Field(default=0, ge=0, le=5)
     follow_links: bool = Field(default=False)
     scopes: list[str] = Field(
@@ -77,6 +78,7 @@ class GoogleDriveExporter:
         "html": ExportFormat(extension="html", mime_type="text/html", description="HTML Document"),
         "epub": ExportFormat(extension="epub", mime_type="application/epub+zip", description="EPUB eBook"),
         "zip": ExportFormat(extension="zip", mime_type="application/zip", description="HTML Zipped"),
+        "md": ExportFormat(extension="md", mime_type="text/html", description="Markdown Document"),
     }
 
     def __init__(self, config: GoogleDriveExporterConfig | None = None):
@@ -345,7 +347,12 @@ class GoogleDriveExporter:
         export_format = self.EXPORT_FORMATS[format_key]
 
         try:
-            request = self.service.files().export_media(fileId=document_id, mimeType=export_format.mime_type)
+            # For markdown, we need to first export as HTML then convert
+            if format_key == "md":
+                # Export as HTML first
+                request = self.service.files().export_media(fileId=document_id, mimeType="text/html")
+            else:
+                request = self.service.files().export_media(fileId=document_id, mimeType=export_format.mime_type)
 
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -360,9 +367,19 @@ class GoogleDriveExporter:
             # Ensure parent directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Write to file
-            with open(output_path, "wb") as f:
-                f.write(fh.getvalue())
+            # Handle markdown conversion
+            if format_key == "md":
+                # Convert HTML to Markdown
+                html_content = fh.getvalue().decode("utf-8")
+                markdown_content = convert_to_markdown(html_content)
+
+                # Write markdown to file
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(markdown_content)
+            else:
+                # Write binary data for other formats
+                with open(output_path, "wb") as f:
+                    f.write(fh.getvalue())
 
             logger.success(f"Exported to {output_path}")
             return True

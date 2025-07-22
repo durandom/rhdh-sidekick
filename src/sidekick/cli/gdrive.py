@@ -24,7 +24,7 @@ def export(
         None, help="Google Drive document IDs or URLs to export (not used with --mirror)"
     ),
     format: str = typer.Option(
-        "html", "--format", "-f", help="Export format: pdf, docx, odt, rtf, txt, html, epub, zip, or 'all'"
+        "html", "--format", "-f", help="Export format: pdf, docx, odt, rtf, txt, html, epub, zip, md, or 'all'"
     ),
     output_dir: Path | None = typer.Option(None, "--output", "-o", help="Output directory for exported files"),
     credentials: Path | None = typer.Option(
@@ -80,7 +80,7 @@ def export(
             output_dir = Path("exports")
 
     # Validate format
-    valid_formats = {"pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "all"}
+    valid_formats = {"pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "md", "all"}
     if format not in valid_formats:
         console.print(f"[red]✗ Invalid format: {format}[/red]")
         console.print(f"Valid formats: {', '.join(sorted(valid_formats))}")
