@@ -93,7 +93,7 @@ def sync(
 
                     source_handler = WebSource(source_config, base_path)
                 else:
-                    console.print(f"[red]✗ Unknown source type: {source_config.type}[/red]")
+                    console.print(f"[red]✗ Unknown source type: {source_config.type}[/red]")  # type: ignore[unreachable]
                     continue
 
                 # Get previous manifest
@@ -289,4 +289,76 @@ def download_web(
         raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]✗ Download failed: {e}[/red]")
+        raise typer.Exit(1) from None
+
+
+@knowledge_app.command()
+def reindex(
+    knowledge_path: Path | None = typer.Option(
+        None, "--knowledge-path", "-k", help="Path to knowledge documents directory"
+    ),
+    vector_db_path: Path | None = typer.Option(None, "--vector-db-path", "-v", help="Path for vector database storage"),
+    table_name: str = typer.Option("rhdh_docs", "--table-name", "-t", help="Name of the LanceDB table"),
+):
+    """Reindex the knowledge base by recreating the LanceDB vector database.
+
+    This command will reload all documents and rebuild the vector embeddings,
+    which can be useful when documents have been updated or the vector database
+    has become corrupted.
+
+    Examples:
+        # Reindex with default paths
+        sidekick knowledge reindex
+
+        # Reindex with custom paths
+        sidekick knowledge reindex --knowledge-path ./docs --vector-db-path ./vectordb
+
+        # Reindex with custom table name
+        sidekick knowledge reindex --table-name my_docs
+    """
+    try:
+        from ..knowledge import KnowledgeManager
+
+        console.print("[blue]🔄 Starting knowledge base reindexing...[/blue]")
+
+        # Create knowledge manager with specified paths
+        manager = KnowledgeManager(
+            knowledge_path=knowledge_path,
+            vector_db_path=vector_db_path,
+            table_name=table_name,
+        )
+
+        # Display current configuration
+        console.print(f"[dim]Knowledge path: {manager.knowledge_path}[/dim]")
+        console.print(f"[dim]Vector DB path: {manager.vector_db_path}[/dim]")
+        console.print(f"[dim]Table name: {manager.table_name}[/dim]")
+
+        if not manager.knowledge_path.exists():
+            console.print(f"[red]✗ Knowledge path not found: {manager.knowledge_path}[/red]")
+            raise typer.Exit(1) from None
+
+        # Count documents for reference
+        md_files = list(manager.knowledge_path.rglob("*.md"))
+        pdf_files = list(manager.knowledge_path.rglob("*.pdf"))
+        total_files = len(md_files) + len(pdf_files)
+
+        if total_files == 0:
+            console.print(f"[yellow]⚠ No documents found in {manager.knowledge_path}[/yellow]")
+            raise typer.Exit(1) from None
+
+        console.print(f"[dim]Found {len(md_files)} markdown and {len(pdf_files)} PDF files[/dim]")
+
+        # Perform reindexing
+        console.print("[blue]📚 Reindexing knowledge base (this may take a while)...[/blue]")
+        manager.reindex_sync()
+
+        console.print("[green]✓ Knowledge base reindexed successfully![/green]")
+        console.print(f"[dim]Processed {total_files} documents[/dim]")
+
+    except ImportError as e:
+        console.print(f"[red]✗ Missing dependencies for knowledge management: {e}[/red]")
+        console.print("[yellow]Install with: uv add agno[/yellow]")
+        raise typer.Exit(1) from None
+    except Exception as e:
+        console.print(f"[red]✗ Reindexing failed: {e}[/red]")
         raise typer.Exit(1) from None
