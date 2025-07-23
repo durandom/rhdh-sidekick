@@ -9,12 +9,16 @@ Supports both markdown and PDF documents.
 import asyncio
 from pathlib import Path
 
+from agno.document.chunking.markdown import MarkdownChunking
+from agno.document.reader.markdown_reader import MarkdownReader
 from agno.embedder.google import GeminiEmbedder
 from agno.knowledge import AgentKnowledge
 from agno.knowledge.markdown import MarkdownKnowledgeBase
 from agno.knowledge.pdf import PDFKnowledgeBase, PDFReader
 from agno.vectordb.lancedb import LanceDb, SearchType
 from loguru import logger
+
+from .chunking import FixedSizeChunking
 
 
 class KnowledgeManager:
@@ -61,7 +65,7 @@ class KnowledgeManager:
                 uri=str(self.vector_db_path),
                 table_name=self.table_name,
                 search_type=SearchType.hybrid,
-                embedder=GeminiEmbedder(),
+                embedder=GeminiEmbedder(id="gemini-embedding-001"),
             )
             logger.debug(f"LanceDB created: {self.vector_db_path}/{self.table_name}")
         return self._vector_db
@@ -109,6 +113,35 @@ class KnowledgeManager:
         """
         asyncio.run(self.reindex())
 
+    def _count_documents(self) -> tuple[list[Path], list[Path]]:
+        """Count and return markdown and PDF files in the knowledge path."""
+        md_files = list(self.knowledge_path.rglob("*.md"))
+        pdf_files = list(self.knowledge_path.rglob("*.pdf"))
+        return md_files, pdf_files
+
+    def _create_knowledge_base(self, vector_db: LanceDb, pdf_files: list[Path]) -> AgentKnowledge:
+        """Create appropriate knowledge base instance based on available files."""
+        # Create chunking strategy with 20,000 character chunks
+        chunking_strategy = FixedSizeChunking(chunk_size=20000, overlap=200)
+        # this doestn't seem to work, see below with the markdown reader
+        if pdf_files:
+            logger.debug("Creating PDFKnowledgeBase with FixedSizeChunking (20k chars)")
+            return PDFKnowledgeBase(
+                path=self.knowledge_path,
+                vector_db=vector_db,
+                reader=PDFReader(chunk=True),
+                chunking_strategy=chunking_strategy,
+            )
+        else:
+            logger.debug("Creating MarkdownKnowledgeBase with FixedSizeChunking (20k chars)")
+            return MarkdownKnowledgeBase(
+                path=self.knowledge_path,
+                vector_db=vector_db,
+                chunking_strategy=chunking_strategy,
+                num_documents=5,
+                reader=MarkdownReader(chunking_strategy=MarkdownChunking(chunk_size=1000000, overlap=200)),
+            )
+
     async def aload_knowledge(self, recreate: bool = False, force_reload: bool = False) -> AgentKnowledge:
         """
         Load or create the knowledge base asynchronously.
@@ -136,6 +169,12 @@ class KnowledgeManager:
             vector_db = self.get_vector_db()
             self._vector_db = vector_db
 
+            # Count documents for reference
+            md_files, pdf_files = self._count_documents()
+
+            if not md_files and not pdf_files:
+                raise RuntimeError(f"No supported documents found in {self.knowledge_path}")
+
             # Check if table exists and has data
             table_exists = self.check_table_exists()
 
@@ -145,24 +184,8 @@ class KnowledgeManager:
                     "Skipping document loading for faster startup."
                 )
 
-                # Count documents for reference
-                md_files = list(self.knowledge_path.rglob("*.md"))
-                pdf_files = list(self.knowledge_path.rglob("*.pdf"))
-
                 # Create knowledge base object without loading documents
-                if pdf_files:
-                    logger.debug("Creating PDFKnowledgeBase (without loading)")
-                    self._knowledge = PDFKnowledgeBase(
-                        path=self.knowledge_path,
-                        vector_db=vector_db,
-                        reader=PDFReader(chunk=True),
-                    )
-                else:
-                    logger.debug("Creating MarkdownKnowledgeBase (without loading)")
-                    self._knowledge = MarkdownKnowledgeBase(
-                        path=self.knowledge_path,
-                        vector_db=vector_db,
-                    )
+                self._knowledge = self._create_knowledge_base(vector_db, pdf_files)
 
                 logger.info(
                     f"Knowledge base ready (using existing data). "
@@ -173,36 +196,20 @@ class KnowledgeManager:
 
             # Table doesn't exist or force_reload requested - load documents
             logger.info(f"Loading knowledge base from {self.knowledge_path}")
-
-            # Count documents first
-            md_files = list(self.knowledge_path.rglob("*.md"))
-            pdf_files = list(self.knowledge_path.rglob("*.pdf"))
-
-            if not md_files and not pdf_files:
-                raise RuntimeError(f"No supported documents found in {self.knowledge_path}")
-
             logger.debug(f"Found {len(md_files)} markdown and {len(pdf_files)} PDF files")
 
-            # Prioritize PDF files since they contain the team documentation
+            # Create and load knowledge base
+            self._knowledge = self._create_knowledge_base(vector_db, pdf_files)
+
             if pdf_files:
                 logger.info("Using PDFKnowledgeBase to process PDF documents")
-                self._knowledge = PDFKnowledgeBase(
-                    path=self.knowledge_path,
-                    vector_db=vector_db,
-                    reader=PDFReader(chunk=True),
-                )
             else:
                 logger.info("Using MarkdownKnowledgeBase to process markdown documents")
-                self._knowledge = MarkdownKnowledgeBase(
-                    path=self.knowledge_path,
-                    vector_db=vector_db,
-                )
 
             # Load the knowledge base asynchronously
             logger.debug(f"Loading knowledge base asynchronously (recreate={recreate})")
             await self._knowledge.aload(recreate=recreate)
 
-            # Count loaded documents by checking what was actually processed
             logger.info(
                 f"Knowledge base loaded successfully with {len(md_files)} markdown "
                 f"and {len(pdf_files)} PDF files available"

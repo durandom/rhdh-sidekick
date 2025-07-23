@@ -4,6 +4,7 @@ Main CLI application with command groups.
 This module defines the main CLI application and registers all command groups.
 """
 
+import base64
 import contextlib
 import os
 import sys
@@ -13,6 +14,11 @@ import typer
 from agno.utils.pprint import pprint_run_response
 from dotenv import load_dotenv
 from loguru import logger
+from openinference.instrumentation.agno import AgnoInstrumentor
+from opentelemetry import trace as trace_api
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from rich.console import Console
 from rich.prompt import Prompt
 
@@ -25,6 +31,44 @@ from .release_notes import release_notes_app
 from .test_analysis import test_analysis_app
 
 load_dotenv(verbose=True)  # take environment variables
+
+
+def setup_langfuse() -> None:
+    """Configure Langfuse tracing with OpenTelemetry."""
+    try:
+        # Set environment variables for Langfuse
+        public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+        secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+        host = os.getenv("LANGFUSE_HOST")
+
+        if not all([public_key, secret_key, host]):
+            logger.warning(
+                "Langfuse configuration incomplete. Missing LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, or LANGFUSE_HOST"
+            )
+            return
+
+        # At this point, we know all values are not None
+        assert public_key is not None
+        assert secret_key is not None
+        assert host is not None
+
+        langfuse_auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+
+        os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = host
+        os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
+
+        # Configure the tracer provider
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
+        trace_api.set_tracer_provider(tracer_provider=tracer_provider)
+
+        # Start instrumenting agno
+        AgnoInstrumentor().instrument()
+
+        logger.info("Langfuse tracing enabled")
+
+    except Exception as e:
+        logger.error(f"Failed to setup Langfuse: {e}")
 
 
 def setup_logging(config: LoggingConfig) -> None:
@@ -135,6 +179,11 @@ def main(
         "--log-format",
         help="Log format (pretty, json)",
     ),
+    langfuse: bool = typer.Option(
+        False,
+        "--langfuse",
+        help="Enable Langfuse tracing (requires LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST)",
+    ),
 ) -> None:
     """sidekick - Modern Python CLI application template."""
     # Map verbose count to log levels
@@ -161,6 +210,10 @@ def main(
         settings.logging.file = settings.log_file
 
     setup_logging(settings.logging)
+
+    # Setup Langfuse if requested
+    if langfuse:
+        setup_langfuse()
 
 
 @app.command()
