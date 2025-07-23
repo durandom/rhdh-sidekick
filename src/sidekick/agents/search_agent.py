@@ -13,7 +13,7 @@ from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from loguru import logger
 
-from .knowledge import KnowledgeManager
+from ..knowledge import KnowledgeManager
 
 
 class SearchAgent:

@@ -302,6 +302,26 @@ uv run sidekick knowledge download git "https://github.com/org/repo" --branch ma
 uv run sidekick knowledge download web "https://example.com/docs" --depth 2
 ```
 
+#### Reindex Command
+Rebuild the vector database for improved search performance:
+
+```bash
+# Reindex knowledge base with default paths
+uv run sidekick knowledge reindex
+
+# Reindex with custom knowledge directory
+uv run sidekick knowledge reindex --knowledge-path ./docs
+
+# Reindex with custom vector database path and table name
+uv run sidekick knowledge reindex --vector-db-path ./vectordb --table-name my_docs
+```
+
+The reindex command is useful when:
+- Documents have been updated or modified outside of the sync process
+- Search results seem outdated or incomplete
+- The vector database has become corrupted
+- You want to rebuild embeddings with updated AI models
+
 ### Directory Structure
 
 The knowledge system organizes content by source:
