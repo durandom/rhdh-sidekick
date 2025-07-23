@@ -427,7 +427,7 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 ### Future Improvements
 - When making decision, consider current assignee (if there is one) and the team they belong to
 - New command to apply changes to the Jira ticket automatically
-- Provide better support for RHDHSUPP issues
+- Provide better support for RHDHBUGS and RHDHSUPP specific components
 
 ## Other Commands
 
@@ -438,6 +438,34 @@ uv run sidekick version
 # Show application info
 uv run sidekick info
 ```
+
+### Jira Data Extraction: `load_jira`
+
+The `load_jira` (CLI command: `load-past-jiras`) command fetches and transforms Jira issues from one or more projects and saves them to a single JSON file for downstream analysis or RAG workflows.
+
+**Usage:**
+
+```
+uv run sidekick jira load-past-jiras [OPTIONS]
+```
+
+**Options:**
+- `--projects TEXT`  Comma-separated list of Jira project keys (default: `RHDHSUPP,RHIDP,RHDHBUGS`)
+- `--jql-extra TEXT` Extra JQL filter to further restrict issues (e.g., `AND status = "Closed"`)
+- `--num-issues INTEGER` Number of issues to return per project (default: 100)
+
+**Behavior:**
+- Always applies built-in filters: only issues with `resolution = "Done"`, `resolutiondate >= -180d`, `Team` and `component` present, and excludes doc review issues if filtered in code.
+- Combines issues from all specified projects into a single file: `knowledge/rag/jira/sample_jiras.json`
+- Temporary files for each project are deleted after merging.
+
+**Example:**
+
+```
+uv run sidekick jira load-past-jiras --projects RHIDP,RHDHSUPP --num-issues 50 --jql-extra 'AND status = "Closed"'
+```
+
+This will fetch up to 50 closed issues per project from RHIDP and RHDHSUPP, apply all built-in filters, and save the combined results to `knowledge/rag/jira/sample_jiras.json`.
 
 ## License
 

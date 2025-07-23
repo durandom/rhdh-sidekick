@@ -69,12 +69,12 @@ class JiraKnowledgeManager:
         self._knowledge = JSONKnowledgeBase(
             path=self.data_path,
             vector_db=self.get_vector_db(),
-            num_documents=5,
+            num_documents=15,
         )
         if self._knowledge is not None:
             self._knowledge.load(recreate=recreate)
         self._loaded = True
-        logger.info("Jira issues indexed for semantic search.")
+        logger.debug("Jira issues indexed for semantic search.")
 
     def get_vector_db(self) -> LanceDb:
         """Get or create the LanceDB vector database instance."""

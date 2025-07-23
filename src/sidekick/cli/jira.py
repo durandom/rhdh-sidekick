@@ -5,6 +5,8 @@ This module provides CLI commands for interacting with Jira tickets and issues.
 """
 
 import asyncio
+import json
+import os
 
 import typer
 from agno.utils.pprint import pprint_run_response
@@ -13,6 +15,8 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from ..agents.jira_agent import JiraAgent
+from sidekick.utils.jira_client_utils import fetch_and_transform_issues
+from sidekick.utils.jira_client_utils import DEFAULT_NUM_ISSUES
 
 console = Console()
 
@@ -145,6 +149,56 @@ def ticket(
 
     # Run the async function
     asyncio.run(fetch_ticket())
+
+
+@jira_app.command()
+def load_past_jiras(
+    projects: str = typer.Option(
+        "RHDHSUPP,RHIDP,RHDHBUGS",
+        help="Comma-separated list of Jira project keys (default: RHDHSUPP,RHIDP,RHDHBUGS)"
+    ),
+    jql_extra: str = typer.Option("", help="Extra JQL filter, e.g. 'AND status = \"Resolved\"'"),
+    num_issues: int = typer.Option(DEFAULT_NUM_ISSUES, help="Number of issues to return per project (default: 100)")
+):
+    """Fetch and transform past Jira tickets for one or more projects. Always filters for resolution = Done, and requires team and component."""
+    from rich.console import Console
+    console = Console()
+    built_in_filter = (
+        'AND resolution = "Done" '
+        'AND resolutiondate >= -360d '
+        'AND Team is not EMPTY '
+        'AND Team != 4365 '
+        'AND component is not EMPTY'
+    )
+    jql = (jql_extra.strip() + " " + built_in_filter).strip()
+    all_issues = []
+    for project_key in [p.strip() for p in projects.split(",") if p.strip()]:
+        try:
+            # Use a temp file for each project
+            temp_file = f"_tmp_{project_key}.json"
+            fetch_and_transform_issues(
+                project_key=project_key,
+                jql_extra=jql,
+                output_file=temp_file,
+                num_issues=num_issues
+            )
+            with open(temp_file, "r") as f:
+                issues = json.load(f)
+            all_issues.extend(issues)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Error fetching issues for {project_key}: {e}[/yellow]")
+        finally:
+            # Delete the temp file if it exists
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except Exception as del_err:
+                console.print(f"[yellow]Warning: Could not delete temp file {temp_file}: {del_err}[/yellow]")
+    # Write combined issues to the fixed output file
+    output_file = "knowledge/rag/jira/sample_jiras.json"
+    with open(output_file, "w") as f:
+        json.dump(all_issues, f, indent=2)
+    console.print(f"[green]Successfully wrote {len(all_issues)} issues to {output_file}[/green]")
 
 
 @jira_app.command()

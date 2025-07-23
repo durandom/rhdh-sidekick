@@ -145,7 +145,7 @@ class JiraTriagerAgent:
         if user_id is not None:
             self.user_id = user_id
         self._session_id = self._generate_session_id()
-        logger.info(f"Created new session: session_id={self._session_id}, user_id={self.user_id}")
+        logger.debug(f"Created new session: session_id={self._session_id}, user_id={self.user_id}")
         return self._session_id
 
     def get_current_session(self) -> Optional[str]:
@@ -165,7 +165,7 @@ class JiraTriagerAgent:
             logger.debug("Agent already initialized")
             return
         try:
-            logger.info("Initializing Jira triager agent")
+            logger.debug("Initializing Jira triager agent")
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
             storage = SqliteStorage(
                 table_name="jira_triager_sessions",
