@@ -425,28 +425,22 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 > The Jira triager leverages Retrieval-Augmented Generation (RAG) and a predefined list of allowed teams and components to ensure recommendations are relevant and actionable.
 
 ### Future Improvements
+- Better Jira integration: 
+  - Pull Jira issues with missing team/ components automatically
+  - Implement command to apply changes to the Jira ticket automatically
+- Improve response speed
+- Consider assigning multiple related components
 - When making decision, consider current assignee (if there is one) and the team they belong to
-- New command to apply changes to the Jira ticket automatically
-- Provide better support for RHDHBUGS and RHDHSUPP specific components
+- Consider: For ArgoCD (not Roadie), Tekton and Quay plugins RHDHBugs should go to RHTAPBugs and engage the RHTAP UI team.
 
-## Other Commands
+### Jira Data Extraction for AI Triager: `load-past-jiras`
 
-```bash
-# Show version
-uv run sidekick version
-
-# Show application info
-uv run sidekick info
-```
-
-### Jira Data Extraction: `load_jira`
-
-The `load_jira` (CLI command: `load-past-jiras`) command fetches and transforms Jira issues from one or more projects and saves them to a single JSON file for downstream analysis or RAG workflows.
+The `load-past-jiras` (CLI command: `load-past-jiras`) command fetches and transforms Jira issues from one or more projects and saves them to a single JSON file for downstream analysis or RAG workflows.
 
 **Usage:**
 
 ```
-uv run sidekick jira load-past-jiras [OPTIONS]
+uv run sidekick jira-triager load-past-jiras [OPTIONS]
 ```
 
 **Options:**
@@ -466,6 +460,16 @@ uv run sidekick jira load-past-jiras --projects RHIDP,RHDHSUPP --num-issues 50 -
 ```
 
 This will fetch up to 50 closed issues per project from RHIDP and RHDHSUPP, apply all built-in filters, and save the combined results to `knowledge/rag/jira/sample_jiras.json`.
+
+## Other Commands
+
+```bash
+# Show version
+uv run sidekick version
+
+# Show application info
+uv run sidekick info
+```
 
 ## License
 

@@ -5,7 +5,7 @@ Jira client utility functions for the sidekick CLI application.
 from loguru import logger
 from sidekick.tools.jira import _get_jira_client
 
-DEFAULT_NUM_ISSUES = 100
+DEFAULT_NUM_ISSUES = 50
 
 def get_project_component_names(project_key: str) -> list[str]:
     """
@@ -22,7 +22,6 @@ def get_project_component_names(project_key: str) -> list[str]:
     except Exception as e:
         logger.error(f"Failed to fetch components for project {project_key}: {e}")
         return [] 
-
 
 
 def get_jira_triager_fields(issue_id: str) -> dict:
@@ -47,6 +46,7 @@ def get_jira_triager_fields(issue_id: str) -> dict:
     components = [comp.name for comp in getattr(issue.fields, "components", [])] if getattr(issue.fields, "components", None) else []
     assignee = issue.fields.assignee.displayName if getattr(issue.fields, "assignee", None) else None
     team = getattr(issue.fields, "customfield_12313240", None)
+    project_key = getattr(getattr(issue.fields, "project", None), "key", None)
 
     return {
         "title": title,
@@ -54,6 +54,7 @@ def get_jira_triager_fields(issue_id: str) -> dict:
         "components": components,
         "team": team,
         "assignee": assignee,
+        "project_key": project_key,
     }
 
 
@@ -68,7 +69,7 @@ def fetch_and_transform_issues(
     Args:
         project_key: The Jira project key (e.g., 'RHIDP' or 'RHDHSUPP')
         jql_extra: Additional JQL filter string (e.g., 'AND status = "Resolved"')
-        num_issues: Total number of issues to return per project (default 100)
+        num_issues: Total number of issues to return per project (default 50)
         output_file: File to write the transformed data to
     """
     import json

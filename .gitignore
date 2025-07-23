@@ -211,7 +211,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-.vscode/*
+.vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -285,3 +285,4 @@ tmp/token_drive.json
 
 # tmp files
 tmp/
+
