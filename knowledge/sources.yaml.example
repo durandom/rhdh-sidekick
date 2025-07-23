@@ -1,0 +1,54 @@
+# Knowledge Sources Configuration
+# This file defines all the knowledge sources that can be synced
+# Copy to knowledge/external/sources.yaml and customize for your needs
+
+sources:
+  # Google Drive documents
+  - type: gdrive
+    name: gdrive
+    export_format: md
+    documents:
+      - url: "https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+        depth: 0
+        comment: "Example document"
+      - url: "https://docs.google.com/document/d/ANOTHER_ID/edit"
+        depth: 2
+        comment: "Document with link following"
+
+  # Git repositories
+  - type: git
+    name: rhdh
+    url: "https://github.com/janus-idp/backstage-showcase"
+    branch: main
+    follow_links: true
+    files:
+      - "docs/**/*.md"
+      - "README.md"
+      - "*.md"
+
+  - type: git
+    name: rhdh-operator
+    url: "https://github.com/janus-idp/operator"
+    branch: main
+    follow_links: false
+    files:
+      - "docs/**/*.md"
+      - "README.md"
+
+  # Web pages
+  - type: web
+    name: rhdh-docs
+    urls:
+      - "https://docs.redhat.com/en/documentation/red_hat_developer_hub"
+    depth: 2
+    patterns:
+      - "*/documentation/*"
+      - "*/docs/*"
+    export_format: md
+
+  - type: web
+    name: backstage-docs
+    urls:
+      - "https://backstage.io/docs/"
+    depth: 1
+    export_format: md
