@@ -154,6 +154,9 @@ app.add_typer(test_analysis_app)
 # Add global options and commands
 console = Console()
 
+# Global streaming flag
+_streaming_enabled = False
+
 
 @app.callback()
 def main(
@@ -183,6 +186,11 @@ def main(
         False,
         "--langfuse",
         help="Enable Langfuse tracing (requires LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST)",
+    ),
+    streaming: bool = typer.Option(
+        False,
+        "--streaming",
+        help="Enable streaming response output for all applicable commands",
     ),
 ) -> None:
     """sidekick - Modern Python CLI application template."""
@@ -215,6 +223,10 @@ def main(
     if langfuse:
         setup_langfuse()
 
+    # Store streaming flag globally
+    global _streaming_enabled
+    _streaming_enabled = streaming
+
 
 @app.command()
 def version() -> None:
@@ -246,10 +258,14 @@ def search(
         logger.debug(f"Executing search with query: {current_query}")
 
         # Execute search
-        response = agent.search(current_query)
-
-        # Print response
-        pprint_run_response(response, markdown=True, show_time=True)
+        if _streaming_enabled:
+            response_stream = agent.search(current_query, stream=True)
+            # Print the streaming response
+            pprint_run_response(response_stream, markdown=True, show_time=True)
+        else:
+            response = agent.search(current_query)
+            # Print response
+            pprint_run_response(response, markdown=True, show_time=True)
 
         # Ask for next query
         console.print("\n[bold cyan]Enter your next search query (or press Enter to exit):[/bold cyan]")

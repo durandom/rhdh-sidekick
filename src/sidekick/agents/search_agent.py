@@ -6,9 +6,10 @@ through the RHDH documentation knowledge base and provide intelligent responses.
 """
 
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 
-from agno.agent import Agent, RunResponse
+from agno.agent import Agent, RunResponse, RunResponseEvent
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from agno.tools.reasoning import ReasoningTools
@@ -170,16 +171,19 @@ class SearchAgent:
             self._initialized = False
             raise RuntimeError(f"Agent initialization failed: {e}") from e
 
-    def search(self, query: str, session_id: str | None = None) -> RunResponse:
+    def search(
+        self, query: str, session_id: str | None = None, stream: bool = False
+    ) -> RunResponse | Iterator[RunResponseEvent]:
         """
         Search using the AI agent and format response for CLI display.
 
         Args:
             query: Search query string
             session_id: Optional session ID to use for this search
+            stream: Whether to return streaming response
 
         Returns:
-            Formatted search result string
+            RunResponse or Iterator[RunResponseEvent] for streaming
         """
         # Ensure agent is initialized
         if not self._initialized:
@@ -197,6 +201,15 @@ class SearchAgent:
         logger.debug(f"Processing search query: '{query}' with session_id={self._session_id}")
 
         # Get response from agent
-        response = self._agent.run(query, stream=False, session_id=self._session_id, user_id=self.user_id)
-
-        return response
+        if stream:
+            response_stream = self._agent.run(
+                query,
+                stream=True,
+                stream_intermediate_steps=True,
+                session_id=self._session_id,
+                user_id=self.user_id,
+            )
+            return response_stream
+        else:
+            response = self._agent.run(query, stream=False, session_id=self._session_id, user_id=self.user_id)
+            return response
