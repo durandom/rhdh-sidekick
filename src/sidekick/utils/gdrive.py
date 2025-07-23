@@ -39,7 +39,7 @@ class ExportFormat(BaseModel):
 class GoogleDriveExporterConfig(BaseModel):
     """Configuration for GoogleDriveExporter."""
 
-    credentials_path: Path = Field(default=Path("tmp/credentials.json"))
+    credentials_path: Path = Field(default=Path(".client_secret.googleusercontent.com.json"))
     token_path: Path = Field(default=Path("tmp/token_drive.json"))
     target_directory: Path = Field(default=Path("exports"))
     export_format: Literal["pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "md", "all"] = "html"
@@ -81,15 +81,18 @@ class GoogleDriveExporter:
         "md": ExportFormat(extension="md", mime_type="text/html", description="Markdown Document"),
     }
 
-    def __init__(self, config: GoogleDriveExporterConfig | None = None):
+    def __init__(self, config: GoogleDriveExporterConfig | None = None, download_callback=None):
         """Initialize the exporter with configuration.
 
         Args:
             config: Configuration object. If None, uses defaults.
+            download_callback: Optional callback function called when files are downloaded.
+                             Should accept (document_id, format_key, output_path, success) arguments.
         """
         self.config = config or GoogleDriveExporterConfig()
         self._service = None
         self._processed_docs: set[str] = set()
+        self.download_callback = download_callback
 
     @property
     def service(self):
@@ -264,7 +267,7 @@ class GoogleDriveExporter:
         return DocumentConfig(url=url, document_id=document_id, depth=depth, comment=comment)
 
     def get_document_metadata(self, document_id: str) -> dict:
-        """Get metadata for a document using multiple fallback methods.
+        """Get metadata for a document using Google Docs API.
 
         Args:
             document_id: Google Drive document ID.
@@ -272,61 +275,40 @@ class GoogleDriveExporter:
         Returns:
             Document metadata including name and mime type.
         """
-        # Method 1: Try Drive API first
         try:
-            file_metadata = (
-                self.service.files()
-                .get(fileId=document_id, fields="name,mimeType,modifiedTime,owners,createdTime")
-                .execute()
-            )
-            logger.debug(f"Got metadata via Drive API: {file_metadata.get('name')}")
-            metadata: dict[Any, Any] = file_metadata
-            return metadata
-        except HttpError as drive_error:
-            logger.debug(f"Drive API failed: {drive_error}")
+            # Create Docs service if we don't have one
+            if not hasattr(self, "_docs_service"):
+                creds = self._authenticate()
+                self._docs_service = build("docs", "v1", credentials=creds)
 
-            # Method 2: Try Google Docs API as fallback
-            if drive_error.resp.status == 404:
-                try:
-                    logger.debug("Trying Google Docs API fallback...")
+            # Get document via Docs API
+            doc = self._docs_service.documents().get(documentId=document_id).execute()
 
-                    # Create Docs service if we don't have one
-                    if not hasattr(self, "_docs_service"):
-                        creds = self._authenticate()
-                        self._docs_service = build("docs", "v1", credentials=creds)
+            # Create metadata dict similar to Drive API response
+            docs_metadata = {
+                "name": doc.get("title", "untitled"),
+                "mimeType": "application/vnd.google-apps.document",
+                "modifiedTime": doc.get("revisionId"),  # Not the same, but something
+                "owners": [],  # Not available via Docs API
+                "createdTime": None,  # Not available via Docs API
+            }
 
-                    # Get document via Docs API
-                    doc = self._docs_service.documents().get(documentId=document_id).execute()
+            logger.debug(f"Got metadata via Docs API: {docs_metadata.get('name')}")
+            return docs_metadata
 
-                    # Create metadata dict similar to Drive API response
-                    docs_metadata = {
-                        "name": doc.get("title", "untitled"),
-                        "mimeType": "application/vnd.google-apps.document",
-                        "modifiedTime": doc.get("revisionId"),  # Not the same, but something
-                        "owners": [],  # Not available via Docs API
-                        "createdTime": None,  # Not available via Docs API
-                    }
-
-                    logger.info(f"Got metadata via Docs API fallback: {docs_metadata.get('name')}")
-                    return docs_metadata
-
-                except Exception as docs_error:
-                    logger.debug(f"Docs API fallback also failed: {docs_error}")
-                    # Fall through to original error handling
-
-            # Original error handling if all methods fail
-            if drive_error.resp.status == 404:
+        except HttpError as error:
+            if error.resp.status == 404:
                 logger.error(f"Document not found or not accessible: {document_id}")
                 logger.error("This could mean:")
                 logger.error("1. Document is not shared with your OAuth account")
                 logger.error("2. Document doesn't exist or was deleted")
                 logger.error("3. You're using a different Google account in your browser")
                 logger.error(f"Document URL: https://docs.google.com/document/d/{document_id}/edit")
-            elif drive_error.resp.status == 403:
+            elif error.resp.status == 403:
                 logger.error(f"Permission denied for document: {document_id}")
                 logger.error("The document exists but you don't have access permissions")
             else:
-                logger.error(f"Failed to get document metadata: {drive_error}")
+                logger.error(f"Failed to get document metadata: {error}")
             raise
 
     def _export_single_format(self, document_id: str, format_key: str, output_path: Path) -> bool:
@@ -382,10 +364,20 @@ class GoogleDriveExporter:
                     f.write(fh.getvalue())
 
             logger.success(f"Exported to {output_path}")
+
+            # Call download callback on success
+            if self.download_callback:
+                self.download_callback(document_id, format_key, output_path, True)
+
             return True
 
         except HttpError as error:
             logger.error(f"Failed to export {format_key}: {error}")
+
+            # Call download callback on failure
+            if self.download_callback:
+                self.download_callback(document_id, format_key, output_path, False)
+
             return False
 
     def _extract_links_from_html(self, html_path: Path) -> list[str]:

@@ -209,76 +209,145 @@ The test analysis feature supports two analysis modes:
 
 > **Note**: The test analysis feature is built on the TestTriage project by [subhashkhileri](https://github.com/subhashkhileri/TestTriage).
 
-## 📄 Google Drive Export
+## 📚 Knowledge Management
 
-The Google Drive export feature allows you to export Google Docs in various formats and maintain synchronized copies of documentation from Google Drive.
+The knowledge management system allows you to sync and manage documentation from multiple sources including Google Drive, Git repositories, and web pages. All content is automatically organized and made searchable through the AI-powered search functionality.
 
-### Usage
+### Quick Start
+
+1. **Edit configuration file**:
+   ```bash
+   # The default configuration is at knowledge/external/sources.yaml
+   vi knowledge/external/sources.yaml
+   ```
+
+2. **Sync all sources**:
+   ```bash
+   # Sync all configured sources (uses knowledge/external/sources.yaml → knowledge/external/ by default)
+   uv run sidekick knowledge sync
+   ```
+
+3. **Search your knowledge**:
+   ```bash
+   # Search across all synced content
+   uv run sidekick search "How to configure authentication"
+   ```
+
+### Configuration
+
+Knowledge sources are defined in `knowledge/external/sources.yaml` by default. The system supports three source types:
+
+#### Google Drive Documents
+```yaml
+- type: gdrive
+  name: team-docs
+  export_format: md
+  documents:
+    - url: "https://docs.google.com/document/d/DOCUMENT_ID/edit"
+      depth: 2  # Follow links 2 levels deep
+      comment: "Main documentation"
+```
+
+#### Git Repositories
+```yaml
+- type: git
+  name: project-docs
+  url: "https://github.com/org/repo"
+  branch: main
+  follow_links: true
+  files:
+    - "docs/**/*.md"
+    - "README.md"
+    - "*.md"
+```
+
+#### Web Pages
+```yaml
+- type: web
+  name: external-docs
+  urls:
+    - "https://docs.example.com"
+  depth: 2
+  patterns:
+    - "*/docs/*"
+    - "*/documentation/*"
+  export_format: md
+```
+
+### Commands
+
+#### Sync Command
+```bash
+# Sync all sources from default configuration (knowledge/external/sources.yaml → knowledge/external/)
+uv run sidekick knowledge sync
+
+# Sync specific source by name
+uv run sidekick knowledge sync --source gdrive
+
+# Use custom configuration file and output directory
+uv run sidekick knowledge sync --config my-sources.yaml --base-path knowledge/my-project
+```
+
+#### Download Commands
+Download specific content without editing the configuration file:
 
 ```bash
-# Export a single document as HTML (default)
-uv run sidekick gdrive export 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
+# Download Google Drive documents
+uv run sidekick knowledge download gdrive "https://docs.google.com/document/d/ID/edit" --depth 2
 
-# Export from a Google Docs URL as PDF
-uv run sidekick gdrive export "https://docs.google.com/document/d/DOCUMENT_ID/edit" -f pdf
+# Download from Git repository
+uv run sidekick knowledge download git "https://github.com/org/repo" --branch main --files "docs/**/*.md"
 
-# Export multiple documents in all available formats
-uv run sidekick gdrive export doc_id_1 doc_id_2 -f all
-
-# Export with linked documents (follows links 2 levels deep)
-uv run sidekick gdrive export doc_id --follow-links --depth 2
-
-# Mirror documents from configuration file
-uv run sidekick gdrive export --mirror
-
-# Mirror with custom configuration file
-uv run sidekick gdrive export --mirror --config my-docs.txt
+# Download web pages
+uv run sidekick knowledge download web "https://example.com/docs" --depth 2
 ```
 
-### Available Export Formats
+### Directory Structure
 
-- **pdf** - Portable Document Format
-- **docx** - Microsoft Word Document
-- **odt** - OpenDocument Text
-- **rtf** - Rich Text Format
-- **txt** - Plain Text
-- **html** - HTML Document
-- **epub** - EPUB Publication
-- **zip** - ZIP Archive (contains HTML and images)
-- **all** - Export in all available formats
-
-### Mirror Mode
-
-Mirror mode automatically exports and maintains local copies of Google Drive documents based on a configuration file. This is useful for:
-- Keeping documentation in sync with Google Drive
-- Creating offline copies of important documents
-- Building knowledge bases from Google Docs
-
-The default configuration file (`knowledge/rhdh/gdrive.txt`) uses the format:
+The knowledge system organizes content by source:
 ```
-# RHDH Documentation Mirror
-# Format: URL [depth=N] [# comment]
-https://docs.google.com/document/d/ID1/edit depth=2 # Main documentation
-https://docs.google.com/document/d/ID2/edit # API reference
+knowledge/
+├── sources.yaml              # Configuration file
+├── sources.yaml.example      # Example configuration
+├── external/                 # External sources (synced content)
+│   ├── .manifests/           # File tracking (auto-managed)
+│   │   ├── gdrive.json
+│   │   └── rhdh.json
+│   ├── gdrive/               # Google Drive documents
+│   │   └── *.md
+│   └── rhdh/                 # Git repository files
+│       └── docs/
+└── product-documentation/    # Static product documentation
+    ├── about/
+    ├── authentication/
+    └── ...
 ```
 
 ### Features
 
-- **Multiple Format Support**: Export documents in 8 different formats
-- **Link Following**: Automatically export linked documents with configurable depth
-- **Batch Export**: Process multiple documents in a single command
-- **Mirror Mode**: Maintain synchronized local copies from configuration files
-- **OAuth Authentication**: Secure access to your Google Drive documents
-- **Debug Mode**: Troubleshoot access issues with detailed information
+- **Multi-Source Support**: Google Drive, Git repositories, and web pages
+- **Automatic Cleanup**: Removes files that are no longer available
+- **Format Conversion**: HTML to Markdown conversion for web content
+- **Link Following**: Configurable depth for following document links
+- **Shallow Git Clones**: Efficient repository downloading
+- **Manifest Tracking**: Tracks downloaded files for proper cleanup
+- **Organized Storage**: Source-based directory organization
+- **AI Search Integration**: All content automatically indexed for search
 
-### Authentication Setup
+### Google Drive Setup
+
+For Google Drive sources, you need OAuth2 authentication:
 
 1. **Create Google Cloud Project** and enable Google Drive API
 2. **Create OAuth2 Credentials** for a desktop application
-3. **Download credentials JSON** and save it locally
-4. **Run export command** - it will open a browser for authorization on first use
+3. **Download credentials** and save as `.client_secret.googleusercontent.com.json` in project root
+4. **Run sync/download command** - it will open a browser for authorization on first use
 
-### Commands
+See `knowledge/README.md` for detailed setup instructions.
+
+### Legacy Google Drive Commands
+
+The original Google Drive commands are still available for backwards compatibility:
 
 ```bash
 # List available export formats
@@ -287,16 +356,9 @@ uv run sidekick gdrive formats
 # Debug access to a specific document
 uv run sidekick gdrive debug DOCUMENT_ID
 
-# Use custom credentials file
-uv run sidekick gdrive export DOCUMENT_ID --credentials path/to/credentials.json
+# Export documents directly
+uv run sidekick gdrive export DOCUMENT_ID --format pdf
 ```
-
-### Common Use Cases
-
-1. **Documentation Sync**: Use mirror mode to keep local copies of team documentation
-2. **Format Conversion**: Export Google Docs to PDF for distribution
-3. **Knowledge Base Building**: Export linked documents to create comprehensive documentation sets
-4. **Backup**: Create offline copies of important documents in multiple formats
 
 ## Other Commands
 
