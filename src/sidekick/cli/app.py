@@ -155,7 +155,7 @@ app.add_typer(test_analysis_app)
 console = Console()
 
 # Global streaming flag
-_streaming_enabled = False
+_streaming_enabled = True
 
 
 @app.callback()
@@ -187,10 +187,10 @@ def main(
         "--langfuse",
         help="Enable Langfuse tracing (requires LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST)",
     ),
-    streaming: bool = typer.Option(
+    no_streaming: bool = typer.Option(
         False,
-        "--streaming",
-        help="Enable streaming response output for all applicable commands",
+        "--no-streaming",
+        help="Disable streaming response output (streaming is enabled by default)",
     ),
 ) -> None:
     """sidekick - Modern Python CLI application template."""
@@ -225,7 +225,7 @@ def main(
 
     # Store streaming flag globally
     global _streaming_enabled
-    _streaming_enabled = streaming
+    _streaming_enabled = not no_streaming
 
 
 @app.command()

@@ -79,6 +79,18 @@ The search command runs in interactive mode by default. After each search result
 - Enter a new query to continue searching
 - Press Enter to exit the search session
 
+### Response Output Options
+
+By default, sidekick uses streaming output for real-time response display. You can control this behavior:
+
+```bash
+# Default: streaming output (real-time response)
+uv run sidekick search "your query"
+
+# Disable streaming (wait for complete response)
+uv run sidekick --no-streaming search "your query"
+```
+
 ### Verbose Logging
 
 ```bash
@@ -87,6 +99,9 @@ uv run sidekick -v search "your query"
 
 # Enable trace logging
 uv run sidekick -vv search "your query"
+
+# Combine options
+uv run sidekick -vv --no-streaming search "your query"
 ```
 
 ## 📝 Release Notes Generation
