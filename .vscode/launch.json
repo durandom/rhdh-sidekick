@@ -84,6 +84,23 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }
+        },
+        {
+            "name": "Debug sidekick knowledge reindex",
+            "type": "python",
+            "request": "launch",
+            "module": "sidekick.cli.app",
+            "args": [
+                "-vv",
+                "knowledge",
+                "reindex"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }
