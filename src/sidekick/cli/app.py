@@ -25,7 +25,6 @@ from .chat import chat_app
 from .gdrive import gdrive_app
 from .knowledge import knowledge_app
 from .release_notes import release_notes_app
-from .tag_team import tag_team_app
 from .test_analysis import test_analysis_app
 
 load_dotenv(verbose=True)  # take environment variables
@@ -147,7 +146,6 @@ app.add_typer(chat_app)
 app.add_typer(gdrive_app)
 app.add_typer(knowledge_app)
 app.add_typer(release_notes_app)
-app.add_typer(tag_team_app)
 app.add_typer(test_analysis_app)
 
 # Add global options and commands
