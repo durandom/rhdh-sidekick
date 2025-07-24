@@ -10,6 +10,7 @@ from os import getenv
 from pathlib import Path
 
 from agno.agent import Agent
+from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from agno.tools.mcp import MCPTools
@@ -24,18 +25,20 @@ class JiraAgent(BaseAgentFactory):
     def __init__(
         self,
         storage_path: Path | None = None,
+        memory: Memory | None = None,
     ):
         """
         Initialize the Jira agent factory.
 
         Args:
             storage_path: Path for agent session storage
+            memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
             storage_path = self.get_default_storage_path("jira")
 
-        super().__init__(storage_path=storage_path)
+        super().__init__(storage_path=storage_path, memory=memory)
 
         logger.debug(f"JiraAgent factory initialized: storage_path={storage_path}")
 
@@ -101,22 +104,9 @@ class JiraAgent(BaseAgentFactory):
         Returns:
             List of instruction strings for the agent
         """
-        return [
-            "You are a helpful Jira assistant that can interact with Jira tickets and issues using MCP "
-            "Atlassian server.",
-            "You can help with various Jira-related tasks including:",
-            "- Fetching ticket details and information",
-            "- Searching for tickets based on criteria",
-            "- Analyzing ticket content and relationships",
-            "- Extracting specific information from tickets",
-            "- Answering questions about ticket status, progress, and details",
-            "- Finding GitHub PR links or other references in tickets",
-            "When users ask questions about tickets, use the available Jira tools to gather the necessary information.",
-            "Be conversational and helpful in your responses.",
-            "Use jira_get_issue to fetch specific ticket details.",
-            "Use jira_search to find tickets based on criteria.",
-            "Always provide clear, structured responses based on the ticket data you retrieve.",
-        ]
+        # Use the new prompt template system
+        jira_url = getenv("JIRA_URL", "your JIRA instance")
+        return self.get_agent_instructions_from_template(jira_instance=jira_url)
 
     def create_storage(self) -> SqliteStorage:
         """Create and return configured storage for the agent.
@@ -167,6 +157,8 @@ class JiraAgent(BaseAgentFactory):
             instructions=instructions,
             tools=[mcp_tools],
             storage=storage,
+            memory=self.memory,
+            enable_agentic_memory=bool(self.memory),
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_runs=3,

@@ -14,6 +14,7 @@ from ..agents import SearchAgent
 from ..agents.base import BaseAgentFactory
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
+from ..memory_config import create_memory_instance
 from ..teams.tag_team import TagTeam
 
 console = Console()
@@ -29,6 +30,22 @@ def get_streaming_enabled() -> bool:
         return True  # Default to streaming enabled
 
 
+def get_user_id() -> str:
+    """Get the global user ID from the main app module."""
+    try:
+        from .app import _user_id
+
+        if _user_id:
+            return _user_id
+    except ImportError:
+        pass
+
+    # Fallback to environment variable or default
+    import os
+
+    return os.getenv("USER", "default_user")
+
+
 # Create the chat sub-application
 chat_app = typer.Typer(
     name="chat",
@@ -41,6 +58,7 @@ async def run_agent_chat(
     agent_factory: BaseAgentFactory,
     message: str | None,
     streaming_enabled: bool,
+    user_id: str,
     **kwargs,
 ) -> None:
     """Generic chat runner for any agent factory.
@@ -49,6 +67,7 @@ async def run_agent_chat(
         agent_factory: Agent factory instance
         message: Initial message
         streaming_enabled: Whether to enable streaming
+        user_id: User ID for memory management
         **kwargs: Additional keyword arguments passed to agent creation
     """
     # Display agent name
@@ -64,7 +83,7 @@ async def run_agent_chat(
 
     try:
         # Run the interactive chat loop
-        await agent.acli_app(message=message, stream=streaming_enabled)
+        await agent.acli_app(message=message, stream=streaming_enabled, user_id=user_id)
     finally:
         # Cleanup any resources
         await agent_factory.cleanup()
@@ -94,8 +113,10 @@ def search(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            agent_factory = SearchAgent()
-            await run_agent_chat(agent_factory, message, streaming_enabled)
+            user_id = get_user_id()
+            memory = create_memory_instance("search_agent_memory")
+            agent_factory = SearchAgent(memory=memory)
+            await run_agent_chat(agent_factory, message, streaming_enabled, user_id)
         except Exception as e:
             logger.error(f"Failed to run search chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
@@ -128,8 +149,10 @@ def jira(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            agent_factory = JiraAgent()
-            await run_agent_chat(agent_factory, message, streaming_enabled)
+            user_id = get_user_id()
+            memory = create_memory_instance("jira_agent_memory")
+            agent_factory = JiraAgent(memory=memory)
+            await run_agent_chat(agent_factory, message, streaming_enabled, user_id)
         except Exception as e:
             logger.error(f"Failed to run Jira chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
@@ -171,8 +194,10 @@ def github(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            agent_factory = GitHubAgent(repository=repo)
-            await run_agent_chat(agent_factory, message, streaming_enabled)
+            user_id = get_user_id()
+            memory = create_memory_instance("github_agent_memory")
+            agent_factory = GitHubAgent(repository=repo, memory=memory)
+            await run_agent_chat(agent_factory, message, streaming_enabled, user_id)
         except Exception as e:
             logger.error(f"Failed to run GitHub chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
@@ -216,13 +241,15 @@ def team(
         try:
             # Get streaming preference
             streaming_enabled = get_streaming_enabled()
+            user_id = get_user_id()
+            memory = create_memory_instance("tag_team_memory")
 
             console.print("[bold blue]Starting Tag Team chat session...[/bold blue]")
             console.print("[dim]Coordinating Jira and GitHub specialists...[/dim]")
 
             # Use the Tag Team as async context manager to properly setup MCP tools
-            async with TagTeam(repository=repo) as tag_team:
-                await tag_team.acli_app(message=message, stream=streaming_enabled, markdown=True)
+            async with TagTeam(repository=repo, memory=memory) as tag_team:
+                await tag_team.acli_app(message=message, stream=streaming_enabled, markdown=True, user_id=user_id)
 
         except Exception as e:
             logger.error(f"Failed to run Tag Team chat: {e}")

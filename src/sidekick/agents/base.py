@@ -10,22 +10,29 @@ from pathlib import Path
 from typing import Any
 
 from agno.agent import Agent
+from agno.memory.v2.memory import Memory
 from loguru import logger
+
+from ..prompts import BasePromptTemplate, get_prompt_registry
+from ..prompts.loaders import load_prompt_template
 
 
 class BaseAgentFactory(ABC):
     """Abstract base factory for creating Agno agents with consistent interfaces."""
 
-    def __init__(self, storage_path: Path | None = None, **kwargs):
+    def __init__(self, storage_path: Path | None = None, memory: Memory | None = None, **kwargs):
         """
         Initialize the agent factory.
 
         Args:
             storage_path: Path for agent session storage
+            memory: Memory instance for user memory management
             **kwargs: Additional agent-specific parameters
         """
         self.storage_path = storage_path
+        self.memory = memory
         self.kwargs = kwargs
+        self._prompt_template: BasePromptTemplate | None = None
 
     @abstractmethod
     def create_agent(self, *args, **kwargs) -> Agent:
@@ -91,7 +98,7 @@ class BaseAgentFactory(ABC):
         Returns:
             Default storage path
         """
-        return Path(f"tmp/{agent_name}_agent.db")
+        return Path("tmp/sidekick.db")
 
     def get_display_name(self) -> str:
         """
@@ -150,3 +157,65 @@ class BaseAgentFactory(ABC):
         if hasattr(self, "_context"):
             await self.cleanup_context(self._context)
             delattr(self, "_context")
+
+    def get_prompt_template_name(self) -> str:
+        """
+        Get the name of the prompt template for this agent.
+
+        Returns:
+            Template name (defaults to agent display name)
+        """
+        # Default to agent display name with 'agents.' prefix
+        return f"agents.{self.get_display_name()}"
+
+    def load_prompt_template(self, template_name: str | None = None) -> BasePromptTemplate:
+        """
+        Load the prompt template for this agent.
+
+        Args:
+            template_name: Optional template name to override default
+
+        Returns:
+            BasePromptTemplate instance
+        """
+        if self._prompt_template is None:
+            name = template_name or self.get_prompt_template_name()
+            try:
+                # Try to get from registry first
+                registry = get_prompt_registry()
+                self._prompt_template = registry.get(name)
+                logger.debug(f"Loaded prompt template '{name}' from registry")
+            except KeyError:
+                # Fall back to loading from file
+                template_path = (
+                    Path(__file__).parent.parent / "prompts" / "templates" / f"{name.replace('.', '/')}.yaml"
+                )
+                if template_path.exists():
+                    self._prompt_template = load_prompt_template(template_path)
+                    logger.debug(f"Loaded prompt template from file: {template_path}")
+                else:
+                    logger.warning(f"No prompt template found for '{name}', using legacy instructions")
+                    # Create a template from legacy instructions
+                    from ..prompts import PromptConfig
+
+                    instructions = self.get_agent_instructions()
+                    self._prompt_template = BasePromptTemplate(
+                        config=PromptConfig(
+                            name=name, description=f"Legacy instructions for {self.get_display_name()}"
+                        ),
+                        template_content="\n\n".join(instructions),
+                    )
+        return self._prompt_template
+
+    def get_agent_instructions_from_template(self, **kwargs) -> list[str]:
+        """
+        Get agent instructions from the prompt template.
+
+        Args:
+            **kwargs: Variables to pass to the template
+
+        Returns:
+            List of instruction strings
+        """
+        template = self.load_prompt_template()
+        return template.get_instructions_list(**kwargs)

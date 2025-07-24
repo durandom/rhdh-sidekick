@@ -22,8 +22,8 @@ from rich.console import Console
 
 from ..settings import LoggingConfig, settings
 from .chat import chat_app
-from .gdrive import gdrive_app
 from .knowledge import knowledge_app
+from .prompts import prompts_app
 from .release_notes import release_notes_app
 from .test_analysis import test_analysis_app
 
@@ -143,8 +143,8 @@ app = typer.Typer(
 
 # Register sub-applications
 app.add_typer(chat_app)
-app.add_typer(gdrive_app)
 app.add_typer(knowledge_app)
+app.add_typer(prompts_app)
 app.add_typer(release_notes_app)
 app.add_typer(test_analysis_app)
 
@@ -153,6 +153,9 @@ console = Console()
 
 # Global streaming flag
 _streaming_enabled = True
+
+# Global user ID for memory
+_user_id: str | None = None
 
 
 @app.callback()
@@ -189,6 +192,11 @@ def main(
         "--no-streaming",
         help="Disable streaming response output (streaming is enabled by default)",
     ),
+    user_id: str | None = typer.Option(
+        None,
+        "--user-id",
+        help="User ID for memory persistence (defaults to USER environment variable)",
+    ),
 ) -> None:
     """sidekick - Modern Python CLI application template."""
     # Map verbose count to log levels
@@ -223,6 +231,10 @@ def main(
     # Store streaming flag globally
     global _streaming_enabled
     _streaming_enabled = not no_streaming
+
+    # Store user ID globally (CLI option takes precedence over environment variable)
+    global _user_id
+    _user_id = user_id or os.getenv("USER")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from loguru import logger
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
 from ..agents.search_agent import SearchAgent
+from ..prompts import get_prompt_registry
 from ..tools.state_management import StateManagementToolkit
 
 
@@ -31,6 +32,7 @@ class TagTeam:
         user_id: str | None = None,
         repository: str | None = None,
         knowledge_path: Path | None = None,
+        memory: Memory | None = None,
     ):
         """
         Initialize the tag team.
@@ -40,18 +42,19 @@ class TagTeam:
             user_id: Optional user ID for session management
             repository: Default GitHub repository (format: "owner/repo")
             knowledge_path: Path to knowledge documents directory for SearchAgent
+            memory: Memory instance for shared memory across all team members
         """
         if storage_path is None:
-            storage_path = Path("tmp/tag_team.db")
+            storage_path = Path("tmp/sidekick.db")
 
         self.storage_path = storage_path
         self.user_id = user_id
         self.repository = repository
         self.knowledge_path = knowledge_path
+        self.memory = memory
         self._team: Team | None = None
         self._initialized = False
         self._session_id: str | None = None
-        self._memory: Memory | None = None
         self._jira_mcp_tools: MCPTools | None = None
         self._github_tools: Any | None = None
         self._search_agent: SearchAgent | None = None
@@ -91,10 +94,35 @@ class TagTeam:
         """
         return self._session_id
 
+    def get_team_instructions(self) -> list[str]:
+        """
+        Get team instructions from the prompt template.
+
+        Returns:
+            List of instruction strings for the team coordinator
+        """
+        registry = get_prompt_registry()
+        template = registry.get("teams.tag_team")
+        return template.get_instructions_list(team_name=self.__class__.__name__)
+
+    def get_member_coordination_instructions(self, member_role: str) -> list[str]:
+        """
+        Get coordination instructions for team members.
+
+        Args:
+            member_role: The role description for the team member
+
+        Returns:
+            List of coordination instruction strings
+        """
+        registry = get_prompt_registry()
+        template = registry.get("teams.team_member_coordination")
+        return template.get_instructions_list(member_role=member_role)
+
     def clear_memory(self) -> None:
         """Clear the shared memory for all agents and team."""
-        if self._memory is not None:
-            self._memory.clear()
+        if self.memory is not None:
+            self.memory.clear()
             logger.info("Cleared tag team memory")
 
     async def __aenter__(self):
@@ -112,16 +140,16 @@ class TagTeam:
         logger.info("Setting up MCP context for tag team")
 
         # Create Jira MCP tools
-        jira_agent_factory = JiraAgent()
+        jira_agent_factory = JiraAgent(memory=self.memory)
         self._jira_mcp_tools = jira_agent_factory.create_mcp_tools()
 
         # Create GitHub tools
-        github_agent_factory = GitHubAgent(repository=self.repository)
+        github_agent_factory = GitHubAgent(repository=self.repository, memory=self.memory)
         self._github_tools = github_agent_factory.create_github_tools()
 
         # Create SearchAgent (no MCP context needed)
         self._search_agent = SearchAgent(
-            knowledge_path=self.knowledge_path, storage_path=self.storage_path.parent / "search_agent.db"
+            knowledge_path=self.knowledge_path, storage_path=self.storage_path, memory=self.memory
         )
 
         # Start MCP context
@@ -157,8 +185,9 @@ class TagTeam:
             # Create storage directory if needed
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create shared memory for persistent chat history
-            self._memory = Memory()
+            # Use provided memory or create fallback memory for persistent chat history
+            if self.memory is None:
+                self.memory = Memory()
 
             # Create team storage
             storage = SqliteStorage(
@@ -167,47 +196,39 @@ class TagTeam:
             )
 
             # Create Jira agent using the factory pattern with MCP tools from context
-            jira_agent_factory = JiraAgent()
+            jira_agent_factory = JiraAgent(memory=self.memory)
             jira_agent = jira_agent_factory.create_agent(self._jira_mcp_tools)
 
             # Update Jira agent for team coordination and add shared memory
             jira_agent.name = "Jira Specialist"
             jira_agent.role = "Manages Jira tickets, searches issues, and extracts ticket information"
-            jira_agent.memory = self._memory  # Add shared memory for chat history
+            jira_agent.memory = self.memory  # Add shared memory for chat history
 
             # Get original instructions and add team coordination instructions
             original_instructions = jira_agent_factory.get_agent_instructions()
-            team_instructions = [
-                "When working with other team members:",
-                "- Share relevant ticket information for GitHub operations",
-                "- Connect Jira issues to GitHub PRs when requested",
-                "- Provide context about business requirements from tickets",
-                "- Use the shared team session state to track your analysis work",
-                "- The team will have generic state management tools you can request",
-                "Be concise but thorough in your responses to support team coordination.",
-            ]
+            team_instructions = self.get_member_coordination_instructions(
+                "ticket information for GitHub operations, "
+                "Jira issues to GitHub PRs connections, "
+                "and business requirements from tickets"
+            )
             jira_agent.instructions = original_instructions + team_instructions
 
             # Create GitHub agent using the factory pattern with tools from context
-            github_agent_factory = GitHubAgent(repository=self.repository)
+            github_agent_factory = GitHubAgent(repository=self.repository, memory=self.memory)
             github_agent = github_agent_factory.create_agent(self._github_tools)
 
             # Update GitHub agent for team coordination and add shared memory
             github_agent.name = "GitHub Specialist"
             github_agent.role = "Manages GitHub repositories, pull requests, and code analysis"
-            github_agent.memory = self._memory  # Add shared memory for chat history
+            github_agent.memory = self.memory  # Add shared memory for chat history
 
             # Get original instructions and add team coordination instructions
             original_instructions = github_agent_factory.get_agent_instructions()
-            team_instructions = [
-                "When working with other team members:",
-                "- Connect GitHub PRs to Jira tickets when requested",
-                "- Provide technical context about code changes",
-                "- Help identify relevant repositories for specific tasks",
-                "- Use the shared team session state to track your analysis work",
-                "- The team will have generic state management tools you can request",
-                "Be concise but thorough in your responses to support team coordination.",
-            ]
+            team_instructions = self.get_member_coordination_instructions(
+                "GitHub PRs to Jira tickets connections, "
+                "technical context about code changes, "
+                "and relevant repository identification"
+            )
             github_agent.instructions = original_instructions + team_instructions
 
             # Initialize SearchAgent and create agent for team
@@ -218,19 +239,15 @@ class TagTeam:
             search_agent.role = (
                 "Searches documentation, provides knowledge base insights, and answers technical questions"
             )
-            search_agent.memory = self._memory  # Add shared memory for chat history
+            search_agent.memory = self.memory  # Add shared memory for chat history
 
             # Get original instructions and add team coordination instructions
             original_instructions = self._search_agent.get_agent_instructions()
-            team_instructions = [
-                "When working with other team members:",
-                "- Provide documentation context for Jira tickets and GitHub issues",
-                "- Search for relevant technical knowledge to support decisions",
-                "- Help with best practices and implementation guidance",
-                "- Use the shared team session state to track your analysis work",
-                "- The team will have generic state management tools you can request",
-                "Be concise but thorough in your responses to support team coordination.",
-            ]
+            team_instructions = self.get_member_coordination_instructions(
+                "documentation context for Jira tickets and GitHub issues, "
+                "relevant technical knowledge to support decisions, "
+                "and best practices/implementation guidance"
+            )
             search_agent.instructions = original_instructions + team_instructions
 
             # Initialize team session state for shared context tracking
@@ -265,44 +282,13 @@ class TagTeam:
                     "A specialized team for coordinating Jira ticket management, "
                     "GitHub repository operations, and knowledge base searches"
                 ),
-                instructions=[
-                    "You are the team leader coordinating between Jira, GitHub, and knowledge base operations.",
-                    "Your team consists of three specialists:",
-                    "1. Jira Specialist - handles ticket management, searches, and analysis",
-                    "2. GitHub Specialist - handles repository operations, PR analysis, and code review",
-                    "3. Knowledge Specialist - searches documentation and provides technical knowledge",
-                    "Your coordination strategy:",
-                    "1. Analyze user requests to determine which specialists are needed",
-                    "2. For ticket-related queries, delegate to the Jira Specialist first",
-                    "3. For repository or PR queries, delegate to the GitHub Specialist",
-                    "4. For documentation or technical knowledge queries, delegate to the Knowledge Specialist",
-                    "5. For cross-platform tasks (linking tickets to PRs), coordinate multiple specialists",
-                    "6. Synthesize responses from all specialists into coherent answers",
-                    "Common coordination patterns:",
-                    "- Ticket analysis: Get ticket details from Jira, then find related PRs in GitHub, "
-                    "with Knowledge Specialist providing context",
-                    "- PR review: Get PR details from GitHub, then check for linked Jira tickets, "
-                    "with documentation support",
-                    "- Feature tracking: Connect Jira feature tickets to GitHub implementation PRs "
-                    "with best practices guidance",
-                    "- Bug investigation: Link Jira bug reports to GitHub fixes with technical documentation context",
-                    "- Knowledge queries: Use Knowledge Specialist for documentation searches and technical guidance",
-                    "Available generic state management tools:",
-                    "- set_state_value: Set any value in the session state",
-                    "- track_item: Track items in collections (tickets, PRs, etc.)",
-                    "- link_items: Create relationships between any items",
-                    "- get_state_summary: Get a summary of the current session state",
-                    "Use these tools creatively to track progress, maintain context, and coordinate work.",
-                    "Always provide clear, actionable responses that leverage insights from both platforms.",
-                    "When information is requested from both platforms, ensure responses are well-integrated.",
-                    "You have access to the conversation history and shared session state.",
-                    "Use the session context to avoid redundant analysis and build on previous work.",
-                ],
+                instructions=self.get_team_instructions(),
                 tools=[state_toolkit],
                 team_session_state=team_session_state,  # Shared state for all team members
                 session_state=team_private_state,  # Team leader's private state
                 storage=storage,
-                memory=self._memory,  # Add shared memory for persistent chat history
+                memory=self.memory,  # Add shared memory for persistent chat history
+                enable_agentic_memory=True,
                 add_datetime_to_instructions=True,
                 enable_agentic_context=True,
                 enable_team_history=True,  # Enable chat history within sessions
