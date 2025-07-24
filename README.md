@@ -56,52 +56,157 @@ GITHUB_ACCESS_TOKEN=your-github-token
 - **GitHub Token**: Go to GitHub Settings → Developer settings → Personal access tokens → Generate new token
   - Required scopes: `repo` (for accessing pull requests)
 
-## 🔍 Search Command
+## 💬 Interactive Chat Commands
 
-The main feature of sidekick is its AI-powered search functionality that uses RAG (Retrieval-Augmented Generation) to search through knowledge bases.
+sidekick provides interactive chat interfaces with specialized AI agents for different platforms and use cases.
 
-### Basic Usage
+### Available Chat Agents
+
+#### Search Agent
+AI-powered search with RAG (Retrieval-Augmented Generation) capabilities for knowledge bases:
 
 ```bash
-# Search for information
-uv run sidekick search "your search query here"
+# Start interactive search chat
+uv run sidekick chat search
 
-# Example searches
-uv run sidekick search "How to install RHDH on OpenShift?"
-uv run sidekick search "What are the authentication methods?"
-uv run sidekick search "Explain the plugin architecture"
+# Start with an initial query
+uv run sidekick chat search "How to install RHDH on OpenShift?"
+uv run sidekick chat search "What are the authentication methods?"
+uv run sidekick chat search "Explain the plugin architecture"
 ```
 
-### Interactive Mode
+#### Jira Agent
+Interactive Jira ticket and issue management:
 
-The search command runs in interactive mode by default. After each search result, you can:
+```bash
+# Start interactive Jira chat
+uv run sidekick chat jira
 
-- Enter a new query to continue searching
-- Press Enter to exit the search session
+# Start with an initial query
+uv run sidekick chat jira "Show me ticket PROJ-123"
+uv run sidekick chat jira "Find all open bugs"
+```
+
+#### GitHub Agent
+Interactive GitHub repository and pull request management:
+
+```bash
+# Start interactive GitHub chat
+uv run sidekick chat github
+
+# Start with default repository
+uv run sidekick chat github --repo owner/repo
+
+# Start with an initial query
+uv run sidekick chat github "Show me open PRs"
+uv run sidekick chat github --repo agno-agi/agno "List recent issues"
+```
+
+### Interactive Features
+
+All chat commands provide:
+- **Persistent sessions** - maintain conversation context
+- **Real-time streaming** - see responses as they're generated
+- **Natural language queries** - ask questions in plain English
+- **Follow-up questions** - continue the conversation naturally
 
 ### Response Output Options
 
-By default, sidekick uses streaming output for real-time response display. You can control this behavior:
+By default, sidekick uses streaming output for real-time response display:
 
 ```bash
 # Default: streaming output (real-time response)
-uv run sidekick search "your query"
+uv run sidekick chat search "your query"
 
 # Disable streaming (wait for complete response)
-uv run sidekick --no-streaming search "your query"
+uv run sidekick --no-streaming chat search "your query"
 ```
 
 ### Verbose Logging
 
 ```bash
 # Enable debug logging
-uv run sidekick -v search "your query"
+uv run sidekick -v chat search "your query"
 
 # Enable trace logging
-uv run sidekick -vv search "your query"
+uv run sidekick -vv chat jira "your query"
 
 # Combine options
-uv run sidekick -vv --no-streaming search "your query"
+uv run sidekick -vv --no-streaming chat github "your query"
+```
+
+## 🏷️ Tag Team - Coordinated Jira & GitHub Operations
+
+The Tag Team feature provides coordinated operations between Jira and GitHub through specialized agents working together. This is ideal for workflows that span both platforms, such as linking tickets to pull requests or analyzing feature implementations across both systems.
+
+### Usage
+
+```bash
+# Start interactive Tag Team chat
+uv run sidekick tag-team chat
+
+# Start with default repository
+uv run sidekick tag-team chat --repo owner/repo
+
+# Start with an initial query
+uv run sidekick tag-team chat "Find PRs related to ticket PROJ-123"
+uv run sidekick tag-team chat "Show me recent activity"
+```
+
+### Team Capabilities
+
+The Tag Team coordinates two specialized agents:
+
+- **Jira Specialist** - Manages tickets, searches issues, analyzes requirements
+- **GitHub Specialist** - Handles repositories, PRs, and code analysis
+
+### What the Tag Team Can Do
+
+- **Cross-platform Linking** - Link Jira tickets to GitHub pull requests
+- **Requirement Analysis** - Analyze ticket requirements and corresponding code changes
+- **Project Tracking** - Cross-platform project tracking and management
+- **Bug Investigation** - Investigate issues across both Jira and GitHub
+- **Feature Workflows** - Coordinate feature development workflows
+- **Contextual Code Review** - Code review with business context from tickets
+
+### Advanced Features
+
+- **Persistent Chat History** - Remembers conversation context within sessions
+- **Shared Session State** - Tracks analyzed tickets, PRs, and discovered links
+- **Investigation Tracking** - Maintains focus and builds context across interactions
+
+### Example Workflows
+
+```bash
+# Link analysis
+uv run sidekick tag-team chat "Show me ticket PROJ-123 and any related PRs"
+
+# Cross-platform search
+uv run sidekick tag-team chat "Find all open PRs for user/repo and check for linked tickets"
+
+# Feature analysis
+uv run sidekick tag-team chat "Analyze the implementation of feature ABC-456"
+
+# Sprint planning
+uv run sidekick tag-team chat "What tickets are blocking the current sprint?"
+```
+
+### Required Environment Variables
+
+```bash
+# For Jira integration
+JIRA_URL=https://your-jira-instance.com
+JIRA_PERSONAL_TOKEN=your-jira-api-token
+
+# For GitHub integration
+GITHUB_ACCESS_TOKEN=your-github-token
+```
+
+### Getting Help
+
+```bash
+# Show detailed information about Tag Team capabilities
+uv run sidekick tag-team info
 ```
 
 ## 📝 Release Notes Generation
@@ -244,8 +349,8 @@ The knowledge management system allows you to sync and manage documentation from
 
 3. **Search your knowledge**:
    ```bash
-   # Search across all synced content
-   uv run sidekick search "How to configure authentication"
+   # Search across all synced content using interactive chat
+   uv run sidekick chat search "How to configure authentication"
    ```
 
 ### Configuration
@@ -379,31 +484,6 @@ For Google Drive sources, you need OAuth2 authentication:
 4. **Run sync/download command** - it will open a browser for authorization on first use
 
 See `knowledge/README.md` for detailed setup instructions.
-
-### Legacy Google Drive Commands
-
-The original Google Drive commands are still available for backwards compatibility:
-
-```bash
-# List available export formats
-uv run sidekick gdrive formats
-
-# Debug access to a specific document
-uv run sidekick gdrive debug DOCUMENT_ID
-
-# Export documents directly
-uv run sidekick gdrive export DOCUMENT_ID --format pdf
-```
-
-## Other Commands
-
-```bash
-# Show version
-uv run sidekick version
-
-# Show application info
-uv run sidekick info
-```
 
 ## License
 
