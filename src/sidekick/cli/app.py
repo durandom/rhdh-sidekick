@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from rich.console import Console
 
+from .. import __version__
 from ..settings import LoggingConfig, settings
 from .chat import chat_app
 from .knowledge import knowledge_app
@@ -156,6 +157,49 @@ _streaming_enabled = True
 
 # Global user ID for memory
 _user_id: str | None = None
+
+
+@app.command()
+def version() -> None:
+    """Show version information."""
+    console.print(f"[bold blue]sidekick[/bold blue] version [green]{__version__}[/green]")
+
+
+@app.command()
+def info() -> None:
+    """Show application information."""
+    console.print("[bold blue]RHDH Sidekick[/bold blue] - Local Engineering Assistant")
+    console.print(
+        "\n[yellow]A locally-running agentic system designed to act as your personal engineering assistant.[/yellow]"
+    )
+    console.print("\nIntegrates with your existing tools (GitHub, Jira, codebase) to help automate routine")
+    console.print("development tasks without requiring context switches to chat interfaces.")
+
+    console.print("\n[bold]Current Features:[/bold]")
+    console.print("  • AI-powered knowledge search with RAG capabilities")
+    console.print("  • Automated release notes generation from Jira tickets and GitHub PRs")
+    console.print("  • Automated test failure analysis for Playwright tests from Prow CI")
+    console.print("  • Interactive conversational interfaces for iterative refinement")
+
+    console.print("\n[bold]Available Commands:[/bold]")
+    console.print("  • [cyan]chat team[/cyan] - Coordinated Jira and GitHub operations through specialized agents")
+    console.print("  • [cyan]chat search[/cyan] - AI-powered search with RAG capabilities")
+    console.print("  • [cyan]chat jira[/cyan] - Interactive Jira ticket management")
+    console.print("  • [cyan]chat github[/cyan] - Interactive GitHub repository management")
+    console.print("  • [cyan]knowledge[/cyan] - Manage knowledge base and indexing")
+    console.print("  • [cyan]release-notes[/cyan] - Generate release notes from Jira/GitHub")
+    console.print("  • [cyan]test-analysis[/cyan] - Analyze Playwright test failures")
+
+    console.print("\n[bold]Built with:[/bold]")
+    console.print("  • [cyan]Typer[/cyan] - Modern CLI framework")
+    console.print("  • [cyan]Rich[/cyan] - Beautiful terminal output")
+    console.print("  • [cyan]Pydantic[/cyan] - Data validation and settings")
+    console.print("  • [cyan]Loguru[/cyan] - Advanced logging")
+    console.print("  • [cyan]Agno[/cyan] - AI agent framework")
+    console.print("  • [cyan]LanceDB[/cyan] - Vector database for RAG")
+
+    console.print(f"\nVersion: [green]{__version__}[/green]")
+    console.print("\nFor more information, see: https://github.com/durandom/rhdh-sidekick")
 
 
 @app.callback()

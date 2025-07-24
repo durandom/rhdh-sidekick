@@ -39,8 +39,8 @@ class TestCLI:
         result = runner.invoke(app, ["info"])
 
         assert result.exit_code == 0
-        assert "sidekick" in result.stdout
-        assert "Modern Python CLI Application Template" in result.stdout
+        assert "RHDH Sidekick" in result.stdout
+        assert "Local Engineering Assistant" in result.stdout
 
     def test_verbose_options(self):
         """Test verbose logging options."""

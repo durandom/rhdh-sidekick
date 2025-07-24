@@ -10,8 +10,6 @@ import sys
 from loguru import logger
 from rich.console import Console
 
-from .cli.app import setup_logging
-
 # Import settings and configure logging
 from .settings import settings
 
@@ -23,6 +21,9 @@ console = Console()
 
 def main() -> None:
     """Main entry point for the CLI application template."""
+    # Import setup_logging here to avoid circular import
+    from .cli.app import setup_logging
+
     # Initial logging setup (will be reconfigured by CLI callback)
     setup_logging(settings.logging)
 

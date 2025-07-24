@@ -1,9 +1,9 @@
 [project]
 name = "sidekick"
 version = "0.1.0"
-description = "Modern Python CLI application template"
+description = "RHDH Sidekick - A locally-running agentic system designed as your personal engineering assistant"
 readme = "README.md"
-license = { text = "CC-BY-NC-4.0" }
+license = { text = "Apache-2.0" }
 authors = [
     { name = "Marcel Hild", email = "hild@b4mad.net" }
 ]
@@ -50,6 +50,7 @@ dependencies = [
     "crawl4ai>=0.7.1",
     "langchain-core>=0.3.29",
     "pyyaml>=6.0.0",
+    "tomli>=2.2.1",
 ]
 
 [project.scripts]
@@ -117,17 +118,17 @@ exclude_lines = [
 # Development dependencies
 [dependency-groups]
 dev = [
-    "ruff==0.11.12", # Linting and formatting
-    "pytest==8.4.0", # Testing framework
-    "pytest-asyncio==1.0.0", # Async testing support
-    "pytest-cov==6.1.1", # Coverage reporting
-    "pre-commit==3.0.0", # Git hooks
-    "mypy==1.16.1",
+    "ruff>=0.11.12", # Linting and formatting
+    "pytest>=8.4.0", # Testing framework
+    "pytest-asyncio>=1.0.0", # Async testing support
+    "pytest-cov>=6.1.1", # Coverage reporting
+    "pre-commit>=3.0.0", # Git hooks
+    "mypy>=1.16.1",
 ]
 docs = [
-    "pdoc==14.0.0",           # API documentation
-    "mkdocs==1.5.0",          # Documentation site
-    "mkdocs-material==9.0.0", # Material theme
+    "pdoc>=14.0.0",           # API documentation
+    "mkdocs>=1.5.0",          # Documentation site
+    "mkdocs-material>=9.0.0", # Material theme
 ]
 
 # MyPy configuration
