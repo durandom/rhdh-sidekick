@@ -11,6 +11,7 @@ from loguru import logger
 from rich.console import Console
 
 from ..agents import SearchAgent
+from ..agents.base import BaseAgentFactory
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
 
@@ -35,57 +36,37 @@ chat_app = typer.Typer(
 )
 
 
-async def run_search_agent(message: str | None, streaming_enabled: bool) -> None:
-    """Run the search agent."""
-    search_agent_factory = SearchAgent()
+async def run_agent_chat(
+    agent_factory: BaseAgentFactory,
+    message: str | None,
+    streaming_enabled: bool,
+    **kwargs,
+) -> None:
+    """Generic chat runner for any agent factory.
 
-    console.print("[bold blue]Starting search chat session...[/bold blue]")
+    Args:
+        agent_factory: Agent factory instance
+        message: Initial message
+        streaming_enabled: Whether to enable streaming
+        **kwargs: Additional keyword arguments passed to agent creation
+    """
+    # Display agent name
+    agent_name = agent_factory.get_display_name()
+    console.print(f"[bold blue]Starting {agent_name} chat session...[/bold blue]")
 
-    # Initialize the agent asynchronously and get the underlying Agno Agent
-    await search_agent_factory.ainitialize()
-    agent = search_agent_factory._agent
+    # Display any extra info (e.g., default repository for GitHub)
+    for info in agent_factory.get_extra_info():
+        console.print(info)
 
-    if agent is None:
-        raise RuntimeError("Failed to initialize search agent")
+    # Use the standard initialization pattern for all agents
+    agent = await agent_factory.initialize_agent()
 
-    # Use agent.acli_app for the interactive chat loop
-    await agent.acli_app(message=message, stream=streaming_enabled)
-
-
-async def run_jira_agent(message: str | None, streaming_enabled: bool) -> None:
-    """Run the Jira agent."""
-    jira_agent_factory = JiraAgent()
-
-    console.print("[bold blue]Starting Jira chat session...[/bold blue]")
-
-    # Create MCP tools and agent using the factory pattern
-    mcp_tools = jira_agent_factory.create_mcp_tools()
-
-    # Use MCP tools as async context manager
-    async with mcp_tools:
-        # Create the agent within the MCP context
-        agent = jira_agent_factory.create_agent(mcp_tools)
-
-        # Use agent.acli_app for the interactive chat loop
+    try:
+        # Run the interactive chat loop
         await agent.acli_app(message=message, stream=streaming_enabled)
-
-
-async def run_github_agent(message: str | None, streaming_enabled: bool, repo: str | None = None) -> None:
-    """Run the GitHub agent."""
-    github_agent_factory = GitHubAgent(repository=repo)
-
-    console.print("[bold blue]Starting GitHub chat session...[/bold blue]")
-    if repo:
-        console.print(f"[dim]Default repository: {repo}[/dim]")
-
-    # Create GitHub tools
-    github_tools = github_agent_factory.create_github_tools()
-
-    # Create the agent
-    agent = github_agent_factory.create_agent(github_tools)
-
-    # Use agent.acli_app for the interactive chat loop
-    await agent.acli_app(message=message, stream=streaming_enabled)
+    finally:
+        # Cleanup any resources
+        await agent_factory.cleanup()
 
 
 @chat_app.command()
@@ -112,7 +93,8 @@ def search(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            await run_search_agent(message, streaming_enabled)
+            agent_factory = SearchAgent()
+            await run_agent_chat(agent_factory, message, streaming_enabled)
         except Exception as e:
             logger.error(f"Failed to run search chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
@@ -145,14 +127,14 @@ def jira(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            await run_jira_agent(message, streaming_enabled)
+            agent_factory = JiraAgent()
+            await run_agent_chat(agent_factory, message, streaming_enabled)
         except Exception as e:
             logger.error(f"Failed to run Jira chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
             console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
-            console.print("  - JIRA_URL")
-            console.print("  - JIRA_PERSONAL_TOKEN")
-            console.print("  - GITHUB_ACCESS_TOKEN (optional)")
+            for env_var in agent_factory.get_required_env_vars():
+                console.print(f"  - {env_var}")
 
     asyncio.run(run_chat())
 
@@ -188,12 +170,14 @@ def github(
     async def run_chat():
         try:
             streaming_enabled = get_streaming_enabled()
-            await run_github_agent(message, streaming_enabled, repo)
+            agent_factory = GitHubAgent(repository=repo)
+            await run_agent_chat(agent_factory, message, streaming_enabled)
         except Exception as e:
             logger.error(f"Failed to run GitHub chat: {e}")
             console.print(f"\n[red]Error:[/red] {e}")
             console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variable set:")
-            console.print("  - GITHUB_ACCESS_TOKEN")
+            for env_var in agent_factory.get_required_env_vars():
+                console.print(f"  - {env_var}")
 
     asyncio.run(run_chat())
 

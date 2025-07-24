@@ -15,8 +15,10 @@ from agno.storage.sqlite import SqliteStorage
 from agno.tools.mcp import MCPTools
 from loguru import logger
 
+from .base import BaseAgentFactory
 
-class JiraAgent:
+
+class JiraAgent(BaseAgentFactory):
     """Factory class for creating Jira-enabled Agno agents with MCP integration."""
 
     def __init__(
@@ -31,9 +33,9 @@ class JiraAgent:
         """
         # Default storage path
         if storage_path is None:
-            storage_path = Path("tmp/jira_agent.db")
+            storage_path = self.get_default_storage_path("jira")
 
-        self.storage_path = storage_path
+        super().__init__(storage_path=storage_path)
 
         logger.debug(f"JiraAgent factory initialized: storage_path={storage_path}")
 
@@ -123,7 +125,8 @@ class JiraAgent:
             Configured SqliteStorage instance
         """
         # Create storage directory if needed
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.storage_path:
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         storage = SqliteStorage(
             table_name="jira_agent_sessions",
@@ -172,3 +175,21 @@ class JiraAgent:
 
         logger.info("Jira agent created successfully")
         return agent
+
+    def get_required_env_vars(self) -> list[str]:
+        """Return list of required environment variables."""
+        return ["JIRA_URL", "JIRA_PERSONAL_TOKEN"]
+
+    async def setup_context(self) -> MCPTools:
+        """Setup async context - create and start MCP tools."""
+        mcp_tools = self.create_mcp_tools()
+        await mcp_tools.__aenter__()
+        return mcp_tools
+
+    async def cleanup_context(self, context: MCPTools) -> None:
+        """Cleanup async context - stop MCP tools."""
+        if context:
+            try:
+                await context.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error cleaning up Jira MCP tools: {e}")
