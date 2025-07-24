@@ -13,6 +13,7 @@ from typing import Any
 from agno.agent import Agent, RunResponse, RunResponseEvent
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
+from agno.tools.knowledge import KnowledgeTools
 from agno.tools.reasoning import ReasoningTools
 from loguru import logger
 
@@ -86,21 +87,28 @@ class SearchAgent(BaseAgentFactory):
     def get_agent_instructions(self) -> list[str]:
         """Get the instructions for the search agent."""
         return [
-            "CRITICAL KNOWLEDGE BASE SEARCH REQUIREMENT:",
-            "You MUST ALWAYS search your knowledge base using the search_knowledge_base tool "
+            "CRITICAL KNOWLEDGE BASE SEARCH WORKFLOW:",
+            "You MUST ALWAYS follow the Think → Search → Analyze cycle using your knowledge tools "
             "before providing any answer to any question, regardless of how simple or obvious "
-            "the question may seem. This is a mandatory first step that cannot be skipped.",
+            "the question may seem. This workflow cannot be skipped.",
+            "",
+            "KNOWLEDGE TOOLS WORKFLOW:",
+            "1. THINK: Use the think tool to plan your approach, brainstorm keywords, and consider search strategies",
+            "2. SEARCH: Execute targeted searches using the search tool with relevant keywords and terms",
+            "3. ANALYZE: Use the analyze tool to evaluate if the results are sufficient and relevant",
+            "4. REPEAT: If analysis shows insufficient results, repeat the cycle with different search terms",
             "",
             "AUDIENCE AND TECHNICAL FOCUS:",
             "Your primary audience consists of engineers and technical professionals who need "
             "precise, actionable technical data. Prioritize technical accuracy, implementation "
             "details, and practical guidance over general explanations.",
             "",
-            "SEARCH PROCESS:",
-            "1. ALWAYS perform a comprehensive knowledge base search first using relevant keywords",
-            "2. Use multiple search queries if the initial search doesn't yield sufficient results",
-            "3. Search for both specific terms and broader contextual information",
-            "4. Never rely on your pre-existing knowledge without first consulting the knowledge base",
+            "SEARCH STRATEGY:",
+            "- Start with specific technical terms related to the query",
+            "- Use broader contextual searches if specific terms don't yield results",
+            "- Try different keyword combinations and synonyms",
+            "- Search for both exact concepts and related topics",
+            "- Never rely on your pre-existing knowledge without first searching the knowledge base",
             "",
             "RESPONSE REQUIREMENTS:",
             "- Provide detailed, comprehensive responses based on search results",
@@ -119,8 +127,8 @@ class SearchAgent(BaseAgentFactory):
             "- Focus on implementation details, API references, and troubleshooting information",
             "",
             "NO RESULTS HANDLING:",
-            "If searches return no relevant results, clearly state: 'No information was found "
-            "in the knowledge base for this query.'",
+            "If searches return no relevant results after trying multiple search strategies, clearly state: "
+            "'No information was found in the knowledge base for this query after comprehensive searching.'",
             "Then suggest alternative search terms or related topics that might be available.",
             "",
             "FORMATTING STANDARDS:",
@@ -143,6 +151,7 @@ class SearchAgent(BaseAgentFactory):
 
     async def cleanup_context(self, context: None) -> None:
         """Cleanup async context - nothing to cleanup for search agent."""
+        _ = context  # Unused parameter
         pass
 
     def create_agent(self, *args, **kwargs) -> Agent:
@@ -150,9 +159,15 @@ class SearchAgent(BaseAgentFactory):
 
         This method expects the knowledge base to be already loaded via setup_context().
 
+        Args:
+            *args: Unused positional arguments
+            **kwargs: Unused keyword arguments
+
         Returns:
             Configured Agent instance
         """
+        _ = args  # Unused parameters
+        _ = kwargs  # Unused parameters
         if self._knowledge is None:
             raise RuntimeError("Knowledge base not loaded. Call setup_context() first.")
 
@@ -166,19 +181,27 @@ class SearchAgent(BaseAgentFactory):
             db_file=str(self.storage_path),
         )
 
+        # Create knowledge tools
+        knowledge_tools = KnowledgeTools(
+            knowledge=self._knowledge,
+            think=True,
+            search=True,
+            analyze=True,
+            add_instructions=True,
+            add_few_shot=True,
+        )
+
         # Create the agent
         agent = Agent(
             name="RHDH Search Assistant",
             model=Gemini(id="gemini-2.5-flash"),
             instructions=self.get_agent_instructions(),
-            knowledge=self._knowledge,
-            tools=[ReasoningTools(add_instructions=True)],
+            tools=[knowledge_tools, ReasoningTools(add_instructions=True)],
             storage=storage,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_runs=3,
             add_references=True,
-            search_knowledge=True,
             read_chat_history=True,
             markdown=True,
         )
