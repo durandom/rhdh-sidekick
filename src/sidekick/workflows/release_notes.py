@@ -28,7 +28,6 @@ class ReleaseNotesGenerator:
         self,
         storage_path: Path | None = None,
         user_id: str | None = None,
-        use_mcp: bool = True,
     ):
         """
         Initialize the release notes generator workflow.
@@ -36,7 +35,6 @@ class ReleaseNotesGenerator:
         Args:
             storage_path: Path for workflow session storage
             user_id: Optional user ID for session management
-            use_mcp: Whether to use MCP Atlassian server (True) or JiraTools (False)
         """
         # Default storage path
         if storage_path is None:
@@ -44,21 +42,16 @@ class ReleaseNotesGenerator:
 
         self.storage_path = storage_path
         self.user_id = user_id
-        self.use_mcp = use_mcp
         self._session_id: str | None = None
 
         # Initialize agents
-        self.jira_agent = JiraAgent(
-            storage_path=storage_path.parent / "jira_agent.db", user_id=user_id, use_mcp=use_mcp
-        )
+        self.jira_agent_factory = JiraAgent(storage_path=storage_path.parent / "jira_agent.db")
 
         # TODO: Initialize other agents in future stages
         # self.github_agent = GithubAgent(...)
         # self.release_notes_agent = ReleaseNotesAgent(...)
 
-        logger.debug(
-            f"ReleaseNotesGenerator initialized: storage_path={storage_path}, user_id={user_id}, use_mcp={use_mcp}"
-        )
+        logger.debug(f"ReleaseNotesGenerator initialized: storage_path={storage_path}, user_id={user_id}")
 
     def _generate_session_id(self) -> str:
         """Generate a new session ID using UUID."""
@@ -125,7 +118,21 @@ class ReleaseNotesGenerator:
         try:
             # Step 1: Fetch Jira ticket details
             logger.debug(f"Step 1: Fetching Jira ticket {ticket_id}")
-            jira_response = await self.jira_agent.fetch_ticket(ticket_id, session_id=self._session_id)
+
+            # Create MCP tools and agent using the factory pattern
+            mcp_tools = self.jira_agent_factory.create_mcp_tools()
+
+            # Use MCP tools as async context manager
+            async with mcp_tools:
+                # Create the agent within the MCP context
+                jira_agent = self.jira_agent_factory.create_agent(mcp_tools)
+
+                # Ask the agent to fetch the ticket details
+                jira_response = await jira_agent.arun(
+                    f"Get detailed information for Jira ticket {ticket_id}",
+                    session_id=self._session_id,
+                    user_id=self.user_id,
+                )
 
             # Print response
 
@@ -174,7 +181,6 @@ class ReleaseNotesGenerator:
                 "metadata": {
                     "workflow_version": "stage_2",
                     "agents_used": ["jira_agent"],
-                    "use_mcp": self.use_mcp,
                     "timestamp": str(uuid.uuid4()),  # Placeholder for actual timestamp
                 },
             }
@@ -209,12 +215,9 @@ class ReleaseNotesGenerator:
             "status": "active",
             "session_id": current_session,
             "user_id": self.user_id,
-            "use_mcp": self.use_mcp,
             "agents": {
-                "jira_agent": {
-                    "initialized": self.jira_agent._initialized,
-                    "session_id": self.jira_agent.get_current_session(),
-                    "use_mcp": self.jira_agent.use_mcp,
+                "jira_agent_factory": {
+                    "storage_path": str(self.jira_agent_factory.storage_path),
                 },
                 # TODO: Add other agents in future stages
             },
