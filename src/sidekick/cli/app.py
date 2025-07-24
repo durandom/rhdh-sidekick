@@ -227,19 +227,5 @@ def main(
     _streaming_enabled = not no_streaming
 
 
-@app.command()
-def version() -> None:
-    """Show version information."""
-    console.print("[bold blue]sidekick[/bold blue] version [bold green]0.1.0[/bold green]")
-
-
-@app.command()
-def info() -> None:
-    """Show application information."""
-    console.print("[bold blue]sidekick[/bold blue] - Modern Python CLI Application Template")
-    console.print("Built with [bold]Typer[/bold], [bold]Rich[/bold], and [bold]Pydantic[/bold]")
-    console.print("Type [bold]--help[/bold] for available commands")
-
-
 if __name__ == "__main__":
     app()
