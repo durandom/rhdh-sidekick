@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import typer
-from agno.utils.pprint import pprint_run_response
 from dotenv import load_dotenv
 from loguru import logger
 from openinference.instrumentation.agno import AgnoInstrumentor
@@ -20,15 +19,14 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from rich.console import Console
-from rich.prompt import Prompt
 
-from ..agents import SearchAgent
 from ..settings import LoggingConfig, settings
 from .gdrive import gdrive_app
 from .github import github_app
 from .jira import jira_app
 from .knowledge import knowledge_app
 from .release_notes import release_notes_app
+from .search import search_app
 from .tag_team import tag_team_app
 from .test_analysis import test_analysis_app
 
@@ -151,6 +149,7 @@ app.add_typer(gdrive_app)
 app.add_typer(github_app)
 app.add_typer(knowledge_app)
 app.add_typer(release_notes_app)
+app.add_typer(search_app)
 app.add_typer(jira_app)
 app.add_typer(tag_team_app)
 app.add_typer(test_analysis_app)
@@ -244,40 +243,6 @@ def info() -> None:
     console.print("[bold blue]sidekick[/bold blue] - Modern Python CLI Application Template")
     console.print("Built with [bold]Typer[/bold], [bold]Rich[/bold], and [bold]Pydantic[/bold]")
     console.print("Type [bold]--help[/bold] for available commands")
-
-
-@app.command()
-def search(
-    query: str = typer.Argument(..., help="Search query string"),
-) -> None:
-    """Search for items matching the query using AI-powered RAG."""
-    logger.debug(f"Search command called with query={query}")
-
-    # Use AI agent for search
-    agent = SearchAgent()
-
-    # Initial search
-    current_query = query
-    while current_query.strip():
-        logger.debug(f"Executing search with query: {current_query}")
-
-        # Execute search
-        if _streaming_enabled:
-            response_stream = agent.search(current_query, stream=True)
-            # Print the streaming response
-            pprint_run_response(response_stream, markdown=True, show_time=True)
-        else:
-            response = agent.search(current_query)
-            # Print response
-            pprint_run_response(response, markdown=True, show_time=True)
-
-        # Ask for next query
-        console.print("\n[bold cyan]Enter your next search query (or press Enter to exit):[/bold cyan]")
-        current_query = Prompt.ask("Search query", default="").strip()
-
-        if not current_query:
-            console.print("[dim]Exiting search session...[/dim]")
-            break
 
 
 if __name__ == "__main__":
