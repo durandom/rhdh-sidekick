@@ -65,17 +65,15 @@ def chat(
 
     async def run_chat():
         try:
-            # Create the Tag Team
-            tag_team = TagTeam(repository=repository)
-
             # Get streaming preference
             streaming_enabled = get_streaming_enabled()
 
             console.print("[bold blue]Starting Tag Team chat session...[/bold blue]")
             console.print("[dim]Coordinating Jira and GitHub specialists...[/dim]")
 
-            # Use the team's async CLI app method (this will initialize automatically)
-            await tag_team.acli_app(message=message, stream=streaming_enabled, markdown=True)
+            # Use the Tag Team as async context manager to properly setup MCP tools
+            async with TagTeam(repository=repository) as tag_team:
+                await tag_team.acli_app(message=message, stream=streaming_enabled, markdown=True)
 
         except Exception as e:
             logger.error(f"Failed to run Tag Team chat: {e}")
