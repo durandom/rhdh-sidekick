@@ -13,6 +13,7 @@ from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from agno.team import Team, TeamRunResponse
+from agno.tools.mcp import MCPTools
 from loguru import logger
 
 from ..agents.github_agent import GitHubAgent
@@ -47,6 +48,8 @@ class TagTeam:
         self._initialized = False
         self._session_id: str | None = None
         self._memory: Memory | None = None
+        self._jira_mcp_tools: MCPTools | None = None
+        self._github_tools: Any | None = None
 
         logger.debug(f"TagTeam initialized: storage_path={storage_path}, user_id={user_id}, repository={repository}")
 
@@ -86,11 +89,53 @@ class TagTeam:
             self._memory.clear()
             logger.info("Cleared tag team memory")
 
+    async def __aenter__(self):
+        """Async context manager entry - initializes MCP tools."""
+        await self._setup_mcp_context()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - cleans up MCP tools."""
+        await self._cleanup_mcp_context()
+
+    async def _setup_mcp_context(self) -> None:
+        """Set up MCP tools within proper async context."""
+        logger.info("Setting up MCP context for tag team")
+
+        # Create Jira MCP tools
+        jira_agent_factory = JiraAgent()
+        self._jira_mcp_tools = jira_agent_factory.create_mcp_tools()
+
+        # Create GitHub tools
+        github_agent_factory = GitHubAgent(repository=self.repository)
+        self._github_tools = github_agent_factory.create_github_tools()
+
+        # Start MCP context
+        if self._jira_mcp_tools is not None:
+            await self._jira_mcp_tools.__aenter__()
+
+        logger.info("MCP context setup completed")
+
+    async def _cleanup_mcp_context(self) -> None:
+        """Clean up MCP tools context."""
+        logger.info("Cleaning up MCP context")
+
+        if self._jira_mcp_tools:
+            try:
+                await self._jira_mcp_tools.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error cleaning up Jira MCP tools: {e}")
+
+        logger.info("MCP context cleanup completed")
+
     async def initialize(self) -> None:
         """Initialize the team with Jira and GitHub agents."""
         if self._initialized:
             logger.debug("Team already initialized")
             return
+
+        if self._jira_mcp_tools is None or self._github_tools is None:
+            raise RuntimeError("MCP context not set up. Use TagTeam as async context manager.")
 
         try:
             logger.info("Initializing tag team")
@@ -107,10 +152,9 @@ class TagTeam:
                 db_file=str(self.storage_path),
             )
 
-            # Create Jira agent using the factory pattern
+            # Create Jira agent using the factory pattern with MCP tools from context
             jira_agent_factory = JiraAgent()
-            mcp_tools = jira_agent_factory.create_mcp_tools()
-            jira_agent = jira_agent_factory.create_agent(mcp_tools)
+            jira_agent = jira_agent_factory.create_agent(self._jira_mcp_tools)
 
             # Update Jira agent for team coordination and add shared memory
             jira_agent.name = "Jira Specialist"
@@ -130,10 +174,9 @@ class TagTeam:
             ]
             jira_agent.instructions = original_instructions + team_instructions
 
-            # Create GitHub agent using the factory pattern
+            # Create GitHub agent using the factory pattern with tools from context
             github_agent_factory = GitHubAgent(repository=self.repository)
-            github_tools = github_agent_factory.create_github_tools()
-            github_agent = github_agent_factory.create_agent(github_tools)
+            github_agent = github_agent_factory.create_agent(self._github_tools)
 
             # Update GitHub agent for team coordination and add shared memory
             github_agent.name = "GitHub Specialist"
@@ -236,6 +279,8 @@ class TagTeam:
         """
         Run a query against the tag team.
 
+        Note: This method assumes TagTeam is being used within an async context manager.
+
         Args:
             query: Question or task for the team
             session_id: Optional session ID to use for this query
@@ -277,6 +322,8 @@ class TagTeam:
         """
         Run an interactive command-line interface to interact with the tag team.
         Works with team dependencies requiring async logic.
+
+        Note: This method assumes TagTeam is being used within an async context manager.
 
         Args:
             message: Initial message to send
@@ -333,6 +380,8 @@ class TagTeam:
         """
         Print the team's response to a message with proper formatting.
         Uses the Team's built-in aprint_response method.
+
+        Note: This method assumes TagTeam is being used within an async context manager.
 
         Args:
             message: The message to send to the team
