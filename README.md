@@ -102,6 +102,21 @@ uv run sidekick chat github "Show me open PRs"
 uv run sidekick chat github --repo agno-agi/agno "List recent issues"
 ```
 
+#### Team Agent
+Coordinated Jira and GitHub operations through specialized agents:
+
+```bash
+# Start interactive Team chat
+uv run sidekick chat team
+
+# Start with default repository
+uv run sidekick chat team --repo owner/repo
+
+# Start with an initial query
+uv run sidekick chat team "Find PRs related to ticket PROJ-123"
+uv run sidekick chat team "Show me recent activity"
+```
+
 ### Interactive Features
 
 All chat commands provide:
@@ -135,22 +150,22 @@ uv run sidekick -vv chat jira "your query"
 uv run sidekick -vv --no-streaming chat github "your query"
 ```
 
-## 🏷️ Tag Team - Coordinated Jira & GitHub Operations
+## 🏷️ Team Agent - Coordinated Jira & GitHub Operations
 
-The Tag Team feature provides coordinated operations between Jira and GitHub through specialized agents working together. This is ideal for workflows that span both platforms, such as linking tickets to pull requests or analyzing feature implementations across both systems.
+The Team agent provides coordinated operations between Jira and GitHub through specialized agents working together. This is ideal for workflows that span both platforms, such as linking tickets to pull requests or analyzing feature implementations across both systems.
 
 ### Usage
 
 ```bash
-# Start interactive Tag Team chat
-uv run sidekick tag-team chat
+# Start interactive Team chat
+uv run sidekick chat team
 
 # Start with default repository
-uv run sidekick tag-team chat --repo owner/repo
+uv run sidekick chat team --repo owner/repo
 
 # Start with an initial query
-uv run sidekick tag-team chat "Find PRs related to ticket PROJ-123"
-uv run sidekick tag-team chat "Show me recent activity"
+uv run sidekick chat team "Find PRs related to ticket PROJ-123"
+uv run sidekick chat team "Show me recent activity"
 ```
 
 ### Team Capabilities
@@ -179,16 +194,16 @@ The Tag Team coordinates two specialized agents:
 
 ```bash
 # Link analysis
-uv run sidekick tag-team chat "Show me ticket PROJ-123 and any related PRs"
+uv run sidekick chat team "Show me ticket PROJ-123 and any related PRs"
 
 # Cross-platform search
-uv run sidekick tag-team chat "Find all open PRs for user/repo and check for linked tickets"
+uv run sidekick chat team "Find all open PRs for user/repo and check for linked tickets"
 
 # Feature analysis
-uv run sidekick tag-team chat "Analyze the implementation of feature ABC-456"
+uv run sidekick chat team "Analyze the implementation of feature ABC-456"
 
 # Sprint planning
-uv run sidekick tag-team chat "What tickets are blocking the current sprint?"
+uv run sidekick chat team "What tickets are blocking the current sprint?"
 ```
 
 ### Required Environment Variables
@@ -205,8 +220,8 @@ GITHUB_ACCESS_TOKEN=your-github-token
 ### Getting Help
 
 ```bash
-# Show detailed information about Tag Team capabilities
-uv run sidekick tag-team info
+# Show detailed information about all chat agents including the Team agent
+uv run sidekick chat info
 ```
 
 ## 📝 Release Notes Generation

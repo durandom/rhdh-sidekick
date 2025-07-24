@@ -14,6 +14,7 @@ from ..agents import SearchAgent
 from ..agents.base import BaseAgentFactory
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
+from ..teams.tag_team import TagTeam
 
 console = Console()
 
@@ -183,6 +184,59 @@ def github(
 
 
 @chat_app.command()
+def team(
+    message: str = typer.Argument(
+        None,
+        help="Initial message to send to the Tag Team",
+    ),
+    repo: str = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help="Default GitHub repository (format: owner/repo)",
+    ),
+) -> None:
+    """
+    Start an interactive chat session with the Tag Team.
+
+    The Tag Team coordinates between Jira and GitHub specialists to help with:
+    - Linking Jira tickets to GitHub PRs
+    - Analyzing ticket requirements and corresponding code changes
+    - Cross-platform project tracking and management
+    - Bug investigation across both platforms
+
+    Example:
+        sidekick chat team
+        sidekick chat team "Find PRs related to ticket PROJ-123"
+        sidekick chat team --repo owner/repo "Show me recent activity"
+    """
+    logger.debug(f"Tag team chat called with message={message}, repo={repo}")
+
+    async def run_chat():
+        try:
+            # Get streaming preference
+            streaming_enabled = get_streaming_enabled()
+
+            console.print("[bold blue]Starting Tag Team chat session...[/bold blue]")
+            console.print("[dim]Coordinating Jira and GitHub specialists...[/dim]")
+
+            # Use the Tag Team as async context manager to properly setup MCP tools
+            async with TagTeam(repository=repo) as tag_team:
+                await tag_team.acli_app(message=message, stream=streaming_enabled, markdown=True)
+
+        except Exception as e:
+            logger.error(f"Failed to run Tag Team chat: {e}")
+            console.print(f"\n[red]Error:[/red] {e}")
+            console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
+            console.print("  - JIRA_URL")
+            console.print("  - JIRA_PERSONAL_TOKEN")
+            console.print("  - GITHUB_ACCESS_TOKEN")
+
+    # Run the async function
+    asyncio.run(run_chat())
+
+
+@chat_app.command()
 def info() -> None:
     """Show information about the chat functionality."""
     console.print("[bold blue]Interactive AI Chat[/bold blue]")
@@ -192,12 +246,15 @@ def info() -> None:
     console.print("  • [cyan]search[/cyan] - AI-powered search using RAG")
     console.print("  • [cyan]jira[/cyan] - Jira ticket and issue management")
     console.print("  • [cyan]github[/cyan] - GitHub repository and PR management")
+    console.print("  • [cyan]team[/cyan] - Coordinated Jira & GitHub operations")
 
     console.print("\n[bold]Usage:[/bold]")
     console.print("  sidekick chat search                          # Start search agent")
     console.print("  sidekick chat jira                            # Start Jira agent")
     console.print("  sidekick chat github                          # Start GitHub agent")
+    console.print("  sidekick chat team                            # Start Tag Team")
     console.print("  sidekick chat github --repo owner/repo        # GitHub with default repo")
+    console.print("  sidekick chat team --repo owner/repo          # Tag Team with default repo")
     console.print('  sidekick chat search "your query"            # Agent with initial message')
 
     console.print("\n[bold]Features:[/bold]")
@@ -209,6 +266,7 @@ def info() -> None:
     console.print("\n[bold]Environment Variables:[/bold]")
     console.print("  • JIRA_URL, JIRA_PERSONAL_TOKEN - For Jira agent")
     console.print("  • GITHUB_ACCESS_TOKEN - For GitHub agent")
+    console.print("  • Both Jira and GitHub variables - For Tag Team")
 
 
 if __name__ == "__main__":
