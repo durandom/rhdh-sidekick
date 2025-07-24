@@ -1,8 +1,8 @@
 """
-Tag Team with Jira and GitHub agents for collaborative ticket and PR management.
+Tag Team with Jira, GitHub, and Search agents for collaborative ticket, PR, and knowledge management.
 
-This module implements a coordinate mode team that combines Jira ticket management
-with GitHub repository operations using specialized agents.
+This module implements a coordinate mode team that combines Jira ticket management,
+GitHub repository operations, and knowledge base searches using specialized agents.
 """
 
 import uuid
@@ -18,17 +18,19 @@ from loguru import logger
 
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
+from ..agents.search_agent import SearchAgent
 from ..tools.state_management import StateManagementToolkit
 
 
 class TagTeam:
-    """Coordinate mode team for Jira and GitHub integration using specialized agents."""
+    """Coordinate mode team for Jira, GitHub, and knowledge base integration using specialized agents."""
 
     def __init__(
         self,
         storage_path: Path | None = None,
         user_id: str | None = None,
         repository: str | None = None,
+        knowledge_path: Path | None = None,
     ):
         """
         Initialize the tag team.
@@ -37,6 +39,7 @@ class TagTeam:
             storage_path: Path for team session storage
             user_id: Optional user ID for session management
             repository: Default GitHub repository (format: "owner/repo")
+            knowledge_path: Path to knowledge documents directory for SearchAgent
         """
         if storage_path is None:
             storage_path = Path("tmp/tag_team.db")
@@ -44,14 +47,19 @@ class TagTeam:
         self.storage_path = storage_path
         self.user_id = user_id
         self.repository = repository
+        self.knowledge_path = knowledge_path
         self._team: Team | None = None
         self._initialized = False
         self._session_id: str | None = None
         self._memory: Memory | None = None
         self._jira_mcp_tools: MCPTools | None = None
         self._github_tools: Any | None = None
+        self._search_agent: SearchAgent | None = None
 
-        logger.debug(f"TagTeam initialized: storage_path={storage_path}, user_id={user_id}, repository={repository}")
+        logger.debug(
+            f"TagTeam initialized: storage_path={storage_path}, user_id={user_id}, "
+            f"repository={repository}, knowledge_path={knowledge_path}"
+        )
 
     def _generate_session_id(self) -> str:
         """Generate a new session ID using UUID."""
@@ -96,6 +104,7 @@ class TagTeam:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - cleans up MCP tools."""
+        _ = exc_type, exc_val, exc_tb  # Unused parameters
         await self._cleanup_mcp_context()
 
     async def _setup_mcp_context(self) -> None:
@@ -109,6 +118,11 @@ class TagTeam:
         # Create GitHub tools
         github_agent_factory = GitHubAgent(repository=self.repository)
         self._github_tools = github_agent_factory.create_github_tools()
+
+        # Create SearchAgent (no MCP context needed)
+        self._search_agent = SearchAgent(
+            knowledge_path=self.knowledge_path, storage_path=self.storage_path.parent / "search_agent.db"
+        )
 
         # Start MCP context
         if self._jira_mcp_tools is not None:
@@ -134,7 +148,7 @@ class TagTeam:
             logger.debug("Team already initialized")
             return
 
-        if self._jira_mcp_tools is None or self._github_tools is None:
+        if self._jira_mcp_tools is None or self._github_tools is None or self._search_agent is None:
             raise RuntimeError("MCP context not set up. Use TagTeam as async context manager.")
 
         try:
@@ -196,6 +210,29 @@ class TagTeam:
             ]
             github_agent.instructions = original_instructions + team_instructions
 
+            # Initialize SearchAgent and create agent for team
+            search_agent = await self._search_agent.initialize_agent()
+
+            # Update SearchAgent for team coordination and add shared memory
+            search_agent.name = "Knowledge Specialist"
+            search_agent.role = (
+                "Searches documentation, provides knowledge base insights, and answers technical questions"
+            )
+            search_agent.memory = self._memory  # Add shared memory for chat history
+
+            # Get original instructions and add team coordination instructions
+            original_instructions = self._search_agent.get_agent_instructions()
+            team_instructions = [
+                "When working with other team members:",
+                "- Provide documentation context for Jira tickets and GitHub issues",
+                "- Search for relevant technical knowledge to support decisions",
+                "- Help with best practices and implementation guidance",
+                "- Use the shared team session state to track your analysis work",
+                "- The team will have generic state management tools you can request",
+                "Be concise but thorough in your responses to support team coordination.",
+            ]
+            search_agent.instructions = original_instructions + team_instructions
+
             # Initialize team session state for shared context tracking
             from datetime import datetime
 
@@ -223,26 +260,33 @@ class TagTeam:
                 name="Tag Team",
                 mode="coordinate",
                 model=Gemini(id="gemini-2.5-flash"),
-                members=[jira_agent, github_agent],
+                members=[jira_agent, github_agent, search_agent],
                 description=(
-                    "A specialized team for coordinating Jira ticket management with GitHub repository operations"
+                    "A specialized team for coordinating Jira ticket management, "
+                    "GitHub repository operations, and knowledge base searches"
                 ),
                 instructions=[
-                    "You are the team leader coordinating between Jira and GitHub operations.",
-                    "Your team consists of two specialists:",
+                    "You are the team leader coordinating between Jira, GitHub, and knowledge base operations.",
+                    "Your team consists of three specialists:",
                     "1. Jira Specialist - handles ticket management, searches, and analysis",
                     "2. GitHub Specialist - handles repository operations, PR analysis, and code review",
+                    "3. Knowledge Specialist - searches documentation and provides technical knowledge",
                     "Your coordination strategy:",
                     "1. Analyze user requests to determine which specialists are needed",
                     "2. For ticket-related queries, delegate to the Jira Specialist first",
                     "3. For repository or PR queries, delegate to the GitHub Specialist",
-                    "4. For cross-platform tasks (linking tickets to PRs), coordinate both specialists",
-                    "5. Synthesize responses from both specialists into coherent answers",
+                    "4. For documentation or technical knowledge queries, delegate to the Knowledge Specialist",
+                    "5. For cross-platform tasks (linking tickets to PRs), coordinate multiple specialists",
+                    "6. Synthesize responses from all specialists into coherent answers",
                     "Common coordination patterns:",
-                    "- Ticket analysis: Get ticket details from Jira, then find related PRs in GitHub",
-                    "- PR review: Get PR details from GitHub, then check for linked Jira tickets",
-                    "- Feature tracking: Connect Jira feature tickets to GitHub implementation PRs",
-                    "- Bug investigation: Link Jira bug reports to GitHub fixes and code changes",
+                    "- Ticket analysis: Get ticket details from Jira, then find related PRs in GitHub, "
+                    "with Knowledge Specialist providing context",
+                    "- PR review: Get PR details from GitHub, then check for linked Jira tickets, "
+                    "with documentation support",
+                    "- Feature tracking: Connect Jira feature tickets to GitHub implementation PRs "
+                    "with best practices guidance",
+                    "- Bug investigation: Link Jira bug reports to GitHub fixes with technical documentation context",
+                    "- Knowledge queries: Use Knowledge Specialist for documentation searches and technical guidance",
                     "Available generic state management tools:",
                     "- set_state_value: Set any value in the session state",
                     "- track_item: Track items in collections (tickets, PRs, etc.)",
