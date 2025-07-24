@@ -15,8 +15,10 @@ from agno.storage.sqlite import SqliteStorage
 from agno.tools.github import GithubTools
 from loguru import logger
 
+from .base import BaseAgentFactory
 
-class GitHubAgent:
+
+class GitHubAgent(BaseAgentFactory):
     """Factory class for creating GitHub-enabled Agno agents."""
 
     def __init__(
@@ -33,9 +35,9 @@ class GitHubAgent:
         """
         # Default storage path
         if storage_path is None:
-            storage_path = Path("tmp/github_agent.db")
+            storage_path = self.get_default_storage_path("github")
 
-        self.storage_path = storage_path
+        super().__init__(storage_path=storage_path, repository=repository)
         self.repository = repository
 
         logger.debug(f"GitHubAgent factory initialized: storage_path={storage_path}, repository={repository}")
@@ -107,7 +109,8 @@ class GitHubAgent:
             Configured SqliteStorage instance
         """
         # Create storage directory if needed
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.storage_path:
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         storage = SqliteStorage(
             table_name="github_agent_sessions",
@@ -152,3 +155,22 @@ class GitHubAgent:
 
         logger.info("GitHub agent created successfully")
         return agent
+
+    def get_required_env_vars(self) -> list[str]:
+        """Return list of required environment variables."""
+        return ["GITHUB_ACCESS_TOKEN"]
+
+    async def setup_context(self) -> GithubTools:
+        """Setup async context - create GitHub tools."""
+        return self.create_github_tools()
+
+    async def cleanup_context(self, context: GithubTools) -> None:
+        """Cleanup async context - nothing to cleanup for GitHub tools."""
+        pass
+
+    def get_extra_info(self) -> list[str]:
+        """Get extra information to display when starting the agent."""
+        info = []
+        if self.repository:
+            info.append(f"[dim]Default repository: {self.repository}[/dim]")
+        return info
