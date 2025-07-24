@@ -79,6 +79,98 @@ class SearchAgent:
         """
         return self._session_id
 
+    async def ainitialize(self) -> None:
+        """Initialize the agent and knowledge base asynchronously (lazy loading)."""
+        if self._initialized:
+            logger.debug("Agent already initialized")
+            return
+
+        try:
+            logger.info("Initializing search agent and knowledge base")
+
+            # Load knowledge base asynchronously
+            knowledge = await self.knowledge_manager.aload_knowledge(recreate=False)
+
+            # Create storage directory if needed
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Create agent storage
+            storage = SqliteStorage(
+                table_name="agent_sessions",
+                db_file=str(self.storage_path),
+            )
+
+            # Create the agent
+            self._agent = Agent(
+                name="RHDH Search Assistant",
+                model=Gemini(id="gemini-2.5-flash"),
+                instructions=[
+                    "CRITICAL KNOWLEDGE BASE SEARCH REQUIREMENT:",
+                    "You MUST ALWAYS search your knowledge base using the search_knowledge_base tool "
+                    "before providing any answer to any question, regardless of how simple or obvious "
+                    "the question may seem. This is a mandatory first step that cannot be skipped.",
+                    "",
+                    "AUDIENCE AND TECHNICAL FOCUS:",
+                    "Your primary audience consists of engineers and technical professionals who need "
+                    "precise, actionable technical data. Prioritize technical accuracy, implementation "
+                    "details, and practical guidance over general explanations.",
+                    "",
+                    "SEARCH PROCESS:",
+                    "1. ALWAYS perform a comprehensive knowledge base search first using relevant keywords",
+                    "2. Use multiple search queries if the initial search doesn't yield sufficient results",
+                    "3. Search for both specific terms and broader contextual information",
+                    "4. Never rely on your pre-existing knowledge without first consulting the knowledge base",
+                    "",
+                    "RESPONSE REQUIREMENTS:",
+                    "- Provide detailed, comprehensive responses based on search results",
+                    "- Include all relevant information found in the knowledge base - do not summarize "
+                    "or shorten unnecessarily",
+                    "- Preserve important details, examples, code snippets, and procedural steps from "
+                    "the documentation",
+                    "- When multiple relevant documents are found, synthesize information from all sources",
+                    "- Always cite specific document sources with titles or filenames when available",
+                    "",
+                    "CONTENT HANDLING:",
+                    "- For Red Hat Developer Hub (RHDH) questions, provide thorough explanations with "
+                    "all available context",
+                    "- For Python programming or development tutorials, search extensively for "
+                    "RHDH-specific development content",
+                    "- Include configuration examples, code samples, and step-by-step procedures when found",
+                    "- Preserve technical specifications, version requirements, and compatibility information",
+                    "- Focus on implementation details, API references, and troubleshooting information",
+                    "",
+                    "NO RESULTS HANDLING:",
+                    "If searches return no relevant results, clearly state: 'No information was found "
+                    "in the knowledge base for this query.'",
+                    "Then suggest alternative search terms or related topics that might be available.",
+                    "",
+                    "FORMATTING STANDARDS:",
+                    "- Structure responses with clear headings and sections",
+                    "- Use bullet points or numbered lists for procedural information",
+                    "- Format code blocks and configuration examples properly",
+                    "- Maintain the original context and meaning from source documents",
+                    "- Ensure responses are complete and self-contained with all necessary details",
+                ],
+                knowledge=knowledge,
+                tools=[ReasoningTools(add_instructions=True)],
+                storage=storage,
+                add_datetime_to_instructions=True,
+                add_history_to_messages=True,
+                num_history_runs=3,
+                add_references=True,
+                search_knowledge=True,
+                read_chat_history=True,
+                markdown=True,
+            )
+
+            self._initialized = True
+            logger.info("Search agent initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize search agent: {e}")
+            self._initialized = False
+            raise RuntimeError(f"Agent initialization failed: {e}") from e
+
     def initialize(self) -> None:
         """Initialize the agent and knowledge base (lazy loading)."""
         if self._initialized:
