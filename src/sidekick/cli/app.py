@@ -25,6 +25,7 @@ from rich.prompt import Prompt
 from ..agents import SearchAgent
 from ..settings import LoggingConfig, settings
 from .gdrive import gdrive_app
+from .github import github_app
 from .jira import jira_app
 from .knowledge import knowledge_app
 from .release_notes import release_notes_app
@@ -146,6 +147,7 @@ app = typer.Typer(
 
 # Register sub-applications
 app.add_typer(gdrive_app)
+app.add_typer(github_app)
 app.add_typer(knowledge_app)
 app.add_typer(release_notes_app)
 app.add_typer(jira_app)
