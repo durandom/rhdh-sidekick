@@ -21,6 +21,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from rich.console import Console
 
 from ..settings import LoggingConfig, settings
+from .chat import chat_app
 from .gdrive import gdrive_app
 from .github import github_app
 from .jira import jira_app
@@ -145,6 +146,7 @@ app = typer.Typer(
 )
 
 # Register sub-applications
+app.add_typer(chat_app)
 app.add_typer(gdrive_app)
 app.add_typer(github_app)
 app.add_typer(knowledge_app)
