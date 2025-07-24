@@ -46,9 +46,9 @@ class TestCLICommands:
         assert result.exit_code == 0
         assert "Show application information" in result.stdout
 
-        result = self.runner.invoke(app, ["search", "--help"])
+        result = self.runner.invoke(app, ["chat", "search", "--help"])
         assert result.exit_code == 0
-        assert "Search query string" in result.stdout
+        assert "search agent" in result.stdout.lower()
 
     def test_verbose_options(self):
         """Test verbose logging options."""
