@@ -48,6 +48,8 @@ dependencies = [
     "bs4>=0.0.2",
     "html-to-markdown[lxml]>=1.8.0",
     "crawl4ai>=0.7.1",
+    "langchain-core>=0.3.29",
+    "pyyaml>=6.0.0",
 ]
 
 [project.scripts]

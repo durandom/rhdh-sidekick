@@ -10,6 +10,7 @@ from os import getenv
 from pathlib import Path
 
 from agno.agent import Agent
+from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from agno.tools.github import GithubTools
@@ -25,6 +26,7 @@ class GitHubAgent(BaseAgentFactory):
         self,
         storage_path: Path | None = None,
         repository: str | None = None,
+        memory: Memory | None = None,
     ):
         """
         Initialize the GitHub agent factory.
@@ -32,12 +34,13 @@ class GitHubAgent(BaseAgentFactory):
         Args:
             storage_path: Path for agent session storage
             repository: Default repository to work with (format: "owner/repo")
+            memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
             storage_path = self.get_default_storage_path("github")
 
-        super().__init__(storage_path=storage_path, repository=repository)
+        super().__init__(storage_path=storage_path, memory=memory, repository=repository)
         self.repository = repository
 
         logger.debug(f"GitHubAgent factory initialized: storage_path={storage_path}, repository={repository}")
@@ -66,6 +69,18 @@ class GitHubAgent(BaseAgentFactory):
             get_pull_request=True,
             get_pull_request_changes=True,
             get_pull_request_comments=True,
+            list_branches=True,
+            get_pull_request_count=True,
+            get_pull_requests=True,
+            get_pull_request_with_details=True,
+            get_repository_with_stats=True,
+            list_issues=True,
+            get_issue=True,
+            get_file_content=True,
+            get_directory_content=True,
+            get_branch_content=True,
+            search_code=True,
+            search_issues_and_prs=True,
         )
 
         logger.debug("GitHub tools created successfully")
@@ -77,23 +92,10 @@ class GitHubAgent(BaseAgentFactory):
         Returns:
             List of instruction strings for the agent
         """
-        instructions = [
-            "You are a helpful GitHub assistant that can interact with GitHub repositories using the GitHub API.",
-            "You can help with various GitHub-related tasks including:",
-            "- Searching for repositories",
-            "- Listing repositories for users or organizations",
-            "- Getting detailed repository information",
-            "- Listing and analyzing pull requests",
-            "- Getting pull request details and file changes",
-            "- Creating issues (when explicitly requested)",
-            "- Analyzing repository activity and contributions",
-            "When users ask questions about repositories or pull requests, "
-            "use the available GitHub tools to gather the necessary information.",
-            "Be conversational and helpful in your responses.",
-            "Always provide clear, structured responses based on the GitHub data you retrieve.",
-            "Do not create issues or pull requests unless explicitly asked to do so.",
-        ]
+        # Use the new prompt template system
+        instructions = self.get_agent_instructions_from_template(default_repository=self.repository or "")
 
+        # Add repository-specific instructions if repository is set
         if self.repository:
             instructions.append(f"You are primarily working with the repository: {self.repository}")
             instructions.append(
@@ -147,6 +149,8 @@ class GitHubAgent(BaseAgentFactory):
             instructions=instructions,
             tools=[github_tools],
             storage=storage,
+            memory=self.memory,
+            enable_agentic_memory=bool(self.memory),
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_runs=3,

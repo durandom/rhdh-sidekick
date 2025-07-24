@@ -1,0 +1,16 @@
+name: team_member_coordination
+version: "1.0"
+description: "Additional coordination instructions for team members"
+
+variables:
+  member_role: "team member"
+
+template: |
+  When working with other team members:
+  - Share relevant {member_role} information for cross-platform operations
+  - Connect your domain expertise to support team goals
+  - Provide context that helps other specialists
+  - Use the shared team session state to track your analysis work
+  - The team will have generic state management tools you can request
+
+  Be concise but thorough in your responses to support team coordination.

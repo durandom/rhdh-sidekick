@@ -500,6 +500,107 @@ For Google Drive sources, you need OAuth2 authentication:
 
 See `knowledge/README.md` for detailed setup instructions.
 
+## 🎨 Prompt Management
+
+The prompt management system provides tools for managing, viewing, and creating prompt templates used by various agents and features throughout sidekick.
+
+### Usage
+
+```bash
+# List all available prompt templates
+uv run sidekick prompts list
+
+# Refresh template cache and list
+uv run sidekick prompts list --refresh
+
+# Show details of a specific template
+uv run sidekick prompts show agents.search
+
+# Show formatted output with default variables
+uv run sidekick prompts show agents.search --format
+
+# Show raw template content
+uv run sidekick prompts show agents.search --raw
+
+# Validate all prompt templates
+uv run sidekick prompts validate
+
+# Validate specific template file or directory
+uv run sidekick prompts validate path/to/templates
+
+# Create a new prompt template
+uv run sidekick prompts create my_agent
+```
+
+### Template Structure
+
+Prompt templates are YAML files that define reusable instructions for AI agents:
+
+```yaml
+name: example_agent
+version: "1.0"
+description: "Description of what this agent does"
+
+# Variables that can be customized
+variables:
+  example_var: "default_value"
+
+# Include shared instructions
+includes:
+  - shared/common_instructions.yaml
+
+# Main template content
+template: |
+  You are a helpful AI assistant.
+
+  Your variable: {{example_var}}
+
+  CAPABILITIES:
+  - List what this agent can do
+
+  GUIDELINES:
+  - Add specific guidelines
+```
+
+### Features
+
+- **Template Discovery**: Automatically discovers and loads templates from the templates directory
+- **Variable Substitution**: Support for template variables with default values
+- **Template Includes**: Reuse common instructions across multiple templates
+- **Validation**: Validate template syntax and structure
+- **Multiple Formats**: View templates as raw YAML, formatted markdown, or instruction lists
+- **Template Creation**: Starter template generator for new agents
+
+### Template Organization
+
+Templates are organized by category:
+
+```
+src/sidekick/prompts/templates/
+├── agents/           # Agent-specific prompts
+│   ├── search.yaml
+│   ├── jira.yaml
+│   └── github.yaml
+├── shared/          # Shared instructions
+│   └── common_instructions.yaml
+└── teams/           # Team coordination prompts
+    └── tag_team.yaml
+```
+
+### Using Templates in Code
+
+Agents can use templates programmatically:
+
+```python
+from sidekick.prompts import get_agent_instructions_from_template
+
+# Load and format a template
+instructions = get_agent_instructions_from_template(
+    "agents.search",
+    variables={"custom_var": "value"}
+)
+```
+
 ## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) file for details.
