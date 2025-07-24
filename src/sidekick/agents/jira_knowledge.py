@@ -69,10 +69,10 @@ class JiraKnowledgeManager:
         self._knowledge = JSONKnowledgeBase(
             path=self.data_path,
             vector_db=self.get_vector_db(),
-            num_documents=15,
+            num_documents=5,
         )
         if self._knowledge is not None:
-            self._knowledge.load(recreate=recreate)
+            self._knowledge.load_document(path=self.data_path, recreate=recreate)
         self._loaded = True
         logger.debug("Jira issues indexed for semantic search.")
 

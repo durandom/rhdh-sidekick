@@ -18,8 +18,6 @@ from .jira_knowledge import JiraKnowledgeManager
 from sidekick.utils.jira_client_utils import get_project_component_names
 
 ALLOWED_TEAMS = [
-    "RHDHPAI - DevAI",
-    "RHDHPAI - UI",
     "RHIDP - Cope",
     "RHIDP - Documentation",
     "RHIDP - Dynamic Plugins",
@@ -36,6 +34,8 @@ ALLOWED_TEAMS = [
     "RHIDP - Support",
     "RHIDP - UXD",
     "RHOAI Workload Orchestration",
+    "RHDHPAI - DevAI",
+    "RHDHPAI - UI",
 ]
 
 COMPONENT_TEAM_MAP = {
@@ -77,7 +77,10 @@ COMPONENT_TEAM_MAP = {
     ],
     "RHIDP - Plugin and AI": [
         "AI"
-    ]
+    ],
+    "RHDHPAI - UI": [
+        "AI"
+    ],
 }
 
 class JiraTriagerAgent:
@@ -164,7 +167,10 @@ class JiraTriagerAgent:
             for team, components in COMPONENT_TEAM_MAP.items():
                 comps_str = ", ".join(sorted(components))
                 team_component_lines.append(f"- {team}: {comps_str}")
-            team_component_map_str = "Team-to-Components Associations:\n" + "\n".join(team_component_lines)
+            team_component_map_str = (
+                "Team-to-Components Associations (not absolute, use as reference):\n"
+                + "\n".join(team_component_lines)
+            )
             self._agent = Agent(
                 name="Jira Triager Agent",
                 model=Gemini(id="gemini-2.0-flash"),
@@ -172,12 +178,12 @@ class JiraTriagerAgent:
                     "You are an expert Jira ticket triager.",
                     "Your job is to recommend the best team and component for a new Jira issue, based on previous support tickets.",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
-                    "You will be given a list of previous tickets (with title, description, component, team, assignee) and the current ticket (title, description, component, team, assignee).",
+                    "You will be given a list of previous tickets (with title, description, component, team) and the current ticket (title, description, component, team, assignee).",
                     "You will be provided with the allowed components for the current ticket in the prompt.",
                     team_component_map_str,
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
-                    "If the current ticket already has a component, team, or assignee, consider them when determining the best match, but override if a better match is found.",
+                    "If the current ticket already has a component, team, or assignee, consider them when determining the best match.",
                     "Output ONLY a JSON object with keys 'team' and 'component'.",
                     "Do NOT include any explanation, markdown, or text outside the JSON.",
                     "Example: {\"team\": \"<team>\", \"component\": \"<component>\"}",
@@ -185,10 +191,6 @@ class JiraTriagerAgent:
                 tools=[],
                 storage=storage,
                 knowledge=self.jira_knowledge_manager._knowledge,
-                add_datetime_to_instructions=True,
-                add_history_to_messages=True,
-                num_history_runs=3,
-                markdown=True,
             )
             self._initialized = True
             logger.info("Jira triager agent initialized successfully")
@@ -236,16 +238,8 @@ class JiraTriagerAgent:
         component = current_ticket.get("component")
         project_key = current_ticket.get("project_key") or "RHIDP"
         allowed_components = get_project_component_names(project_key)
-        # Always include the team-to-components association in the prompt
-        team_component_lines = []
-        for team, components in COMPONENT_TEAM_MAP.items():
-            comps_str = ", ".join(sorted(components))
-            team_component_lines.append(f"- {team}: {comps_str}")
-        team_component_map_str = "Team-to-Components Associations:\n" + "\n".join(team_component_lines)
-        prompt_lines = [
-            team_component_map_str,
-            f"Allowed components: {allowed_components}",
-        ]
+
+        prompt_lines = [f"Allowed components: {allowed_components}"]
         if component:
             prompt_lines.append(f"Current component: {component}")
         prompt_lines.extend([

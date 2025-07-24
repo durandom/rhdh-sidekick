@@ -58,6 +58,18 @@ def get_jira_triager_fields(issue_id: str) -> dict:
     }
 
 
+def clean_text(text):
+    if not text:
+        return ""
+    # Remove Jira formatting artifacts and normalize whitespace
+    cleaned = text.replace("{noformat}", "")
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "")
+    # Collapse multiple newlines to a maximum of two
+    import re
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    cleaned = cleaned.strip()
+    return cleaned
+
 def fetch_and_transform_issues(
     project_key: str,
     jql_extra: str = "",
@@ -106,7 +118,7 @@ def fetch_and_transform_issues(
                 team = team_field
             else:
                 team = ""
-            description = getattr(fields, "description", "")
+            description = clean_text(getattr(fields, "description", ""))
             key = issue.key
             transformed_data.append({
                 "title": title,
