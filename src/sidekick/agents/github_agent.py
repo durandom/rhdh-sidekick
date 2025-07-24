@@ -1,0 +1,154 @@
+"""
+Generic GitHub integration agent for interactive repository processing.
+
+This module implements an AI agent using the Agno framework that can interact
+with GitHub repositories in a conversational manner. Uses agno.tools.github
+for GitHub API access with interactive question loops.
+"""
+
+from os import getenv
+from pathlib import Path
+
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.storage.sqlite import SqliteStorage
+from agno.tools.github import GithubTools
+from loguru import logger
+
+
+class GitHubAgent:
+    """Factory class for creating GitHub-enabled Agno agents."""
+
+    def __init__(
+        self,
+        storage_path: Path | None = None,
+        repository: str | None = None,
+    ):
+        """
+        Initialize the GitHub agent factory.
+
+        Args:
+            storage_path: Path for agent session storage
+            repository: Default repository to work with (format: "owner/repo")
+        """
+        # Default storage path
+        if storage_path is None:
+            storage_path = Path("tmp/github_agent.db")
+
+        self.storage_path = storage_path
+        self.repository = repository
+
+        logger.debug(f"GitHubAgent factory initialized: storage_path={storage_path}, repository={repository}")
+
+    def create_github_tools(self) -> GithubTools:
+        """Create and return configured GitHub tools.
+
+        Returns:
+            Configured GithubTools instance
+
+        Raises:
+            ValueError: If required environment variables are missing
+        """
+        # Get environment variables
+        github_token = getenv("GITHUB_ACCESS_TOKEN")
+
+        if not github_token:
+            raise ValueError("GITHUB_ACCESS_TOKEN environment variable is required for GitHub integration")
+
+        # Create GitHub tools with all capabilities enabled
+        github_tools = GithubTools(
+            access_token=github_token,
+            search_repositories=True,
+            list_repositories=True,
+            get_repository=True,
+            get_pull_request=True,
+            get_pull_request_changes=True,
+            get_pull_request_comments=True,
+        )
+
+        logger.debug("GitHub tools created successfully")
+        return github_tools
+
+    def get_agent_instructions(self) -> list[str]:
+        """Get the instructions for the GitHub agent.
+
+        Returns:
+            List of instruction strings for the agent
+        """
+        instructions = [
+            "You are a helpful GitHub assistant that can interact with GitHub repositories using the GitHub API.",
+            "You can help with various GitHub-related tasks including:",
+            "- Searching for repositories",
+            "- Listing repositories for users or organizations",
+            "- Getting detailed repository information",
+            "- Listing and analyzing pull requests",
+            "- Getting pull request details and file changes",
+            "- Creating issues (when explicitly requested)",
+            "- Analyzing repository activity and contributions",
+            "When users ask questions about repositories or pull requests, "
+            "use the available GitHub tools to gather the necessary information.",
+            "Be conversational and helpful in your responses.",
+            "Always provide clear, structured responses based on the GitHub data you retrieve.",
+            "Do not create issues or pull requests unless explicitly asked to do so.",
+        ]
+
+        if self.repository:
+            instructions.append(f"You are primarily working with the repository: {self.repository}")
+            instructions.append(
+                "When users ask about 'this repo' or don't specify a repository, use this default repository."
+            )
+
+        return instructions
+
+    def create_storage(self) -> SqliteStorage:
+        """Create and return configured storage for the agent.
+
+        Returns:
+            Configured SqliteStorage instance
+        """
+        # Create storage directory if needed
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+
+        storage = SqliteStorage(
+            table_name="github_agent_sessions",
+            db_file=str(self.storage_path),
+        )
+
+        logger.debug(f"Created GitHub agent storage at {self.storage_path}")
+        return storage
+
+    def create_agent(self, github_tools: GithubTools) -> Agent:
+        """Create and return a configured Agno Agent with GitHub capabilities.
+
+        Args:
+            github_tools: Configured GitHub tools instance
+
+        Returns:
+            Configured Agno Agent instance
+        """
+        # Log required environment variables
+        github_token = getenv("GITHUB_ACCESS_TOKEN")
+
+        logger.info(f"GITHUB_ACCESS_TOKEN: {'set' if github_token else 'NOT SET'}")
+
+        # Create storage
+        storage = self.create_storage()
+
+        # Get instructions
+        instructions = self.get_agent_instructions()
+
+        # Create the agent
+        agent = Agent(
+            name="GitHub Assistant",
+            model=Gemini(id="gemini-2.5-flash"),
+            instructions=instructions,
+            tools=[github_tools],
+            storage=storage,
+            add_datetime_to_instructions=True,
+            add_history_to_messages=True,
+            num_history_runs=3,
+            markdown=True,
+        )
+
+        logger.info("GitHub agent created successfully")
+        return agent
