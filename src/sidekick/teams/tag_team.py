@@ -17,290 +17,7 @@ from loguru import logger
 
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
-
-
-def track_ticket_analysis(team: Team, ticket_key: str, summary: str) -> str:
-    """Track a Jira ticket that has been analyzed in this session.
-
-    Args:
-        team: The team instance
-        ticket_key: Jira ticket key (e.g., 'PROJ-123')
-        summary: Brief summary of the ticket analysis
-    """
-    analyzed_tickets = team.team_session_state.get("analyzed_tickets", [])
-
-    # Check if ticket is already tracked
-    for ticket in analyzed_tickets:
-        if ticket["key"] == ticket_key:
-            ticket["summary"] = summary  # Update existing
-            return f"Updated analysis tracking for {ticket_key}"
-
-    # Add new ticket
-    analyzed_tickets.append(
-        {
-            "key": ticket_key,
-            "summary": summary,
-            "timestamp": team.team_session_state.get("session_start_time", "unknown"),
-        }
-    )
-    team.team_session_state["analyzed_tickets"] = analyzed_tickets
-
-    return f"Now tracking analysis of {ticket_key}: {summary}"
-
-
-def track_pr_analysis(team: Team, repo: str, pr_number: int, summary: str) -> str:
-    """Track a GitHub PR that has been analyzed in this session.
-
-    Args:
-        team: The team instance
-        repo: Repository name (e.g., 'owner/repo')
-        pr_number: PR number
-        summary: Brief summary of the PR analysis
-    """
-    analyzed_prs = team.team_session_state.get("analyzed_prs", [])
-
-    pr_key = f"{repo}#{pr_number}"
-
-    # Check if PR is already tracked
-    for pr in analyzed_prs:
-        if pr["key"] == pr_key:
-            pr["summary"] = summary  # Update existing
-            return f"Updated analysis tracking for {pr_key}"
-
-    # Add new PR
-    analyzed_prs.append(
-        {
-            "key": pr_key,
-            "repo": repo,
-            "number": pr_number,
-            "summary": summary,
-            "timestamp": team.team_session_state.get("session_start_time", "unknown"),
-        }
-    )
-    team.team_session_state["analyzed_prs"] = analyzed_prs
-
-    return f"Now tracking analysis of {pr_key}: {summary}"
-
-
-def link_ticket_to_pr(team: Team, ticket_key: str, repo: str, pr_number: int, relationship: str = "implements") -> str:
-    """Create a link between a Jira ticket and GitHub PR.
-
-    Args:
-        team: The team instance
-        ticket_key: Jira ticket key
-        repo: Repository name
-        pr_number: PR number
-        relationship: Type of relationship (implements, fixes, relates_to, etc.)
-    """
-    links = team.team_session_state.get("ticket_pr_links", {})
-    pr_key = f"{repo}#{pr_number}"
-
-    if ticket_key not in links:
-        links[ticket_key] = []
-
-    # Check if link already exists
-    for link in links[ticket_key]:
-        if link["pr_key"] == pr_key:
-            link["relationship"] = relationship  # Update existing
-            return f"Updated link: {ticket_key} {relationship} {pr_key}"
-
-    # Add new link
-    links[ticket_key].append({"pr_key": pr_key, "repo": repo, "pr_number": pr_number, "relationship": relationship})
-    team.team_session_state["ticket_pr_links"] = links
-
-    return f"Linked: {ticket_key} {relationship} {pr_key}"
-
-
-def get_session_context(team: Team) -> str:
-    """Get a summary of what has been analyzed and discovered in this session.
-
-    Args:
-        team: The team instance
-    """
-    context_parts = []
-
-    # Session overview
-    analyzed_tickets = team.team_session_state.get("analyzed_tickets", [])
-    analyzed_prs = team.team_session_state.get("analyzed_prs", [])
-    links = team.team_session_state.get("ticket_pr_links", {})
-    current_focus = team.team_session_state.get("current_investigation", None)
-
-    context_parts.append("## Session Context Summary")
-
-    if current_focus:
-        context_parts.append(f"**Current Focus:** {current_focus}")
-
-    if analyzed_tickets:
-        context_parts.append(f"**Analyzed Tickets ({len(analyzed_tickets)}):**")
-        for ticket in analyzed_tickets[-5:]:  # Show last 5
-            context_parts.append(f"- {ticket['key']}: {ticket['summary']}")
-
-    if analyzed_prs:
-        context_parts.append(f"**Analyzed PRs ({len(analyzed_prs)}):**")
-        for pr in analyzed_prs[-5:]:  # Show last 5
-            context_parts.append(f"- {pr['key']}: {pr['summary']}")
-
-    if links:
-        context_parts.append(f"**Discovered Links ({len(links)}):**")
-        for ticket_key, pr_links in list(links.items())[:5]:  # Show first 5
-            for link in pr_links:
-                context_parts.append(f"- {ticket_key} {link['relationship']} {link['pr_key']}")
-
-    if not any([analyzed_tickets, analyzed_prs, links]):
-        context_parts.append("No tickets, PRs, or links have been analyzed yet in this session.")
-
-    return "\n".join(context_parts)
-
-
-def set_investigation_focus(team: Team, focus: str) -> str:
-    """Set the current investigation focus for the team.
-
-    Args:
-        team: The team instance
-        focus: Description of what we're currently investigating
-    """
-    team.team_session_state["current_investigation"] = focus
-    return f"Set investigation focus: {focus}"
-
-
-def update_user_preferences(team: Team, preference_key: str, preference_value: str) -> str:
-    """Update user preferences for this session.
-
-    Args:
-        team: The team instance
-        preference_key: Preference key (e.g., 'default_repo', 'search_filter')
-        preference_value: Preference value
-    """
-    prefs = team.team_session_state.get("user_preferences", {})
-    prefs[preference_key] = preference_value
-    team.team_session_state["user_preferences"] = prefs
-
-    return f"Updated preference {preference_key}: {preference_value}"
-
-
-# Agent-level tools for accessing shared team state
-def record_ticket_analysis(agent, ticket_key: str, summary: str) -> str:
-    """Record that a Jira ticket has been analyzed (agent tool).
-
-    Args:
-        agent: The agent instance
-        ticket_key: Jira ticket key (e.g., 'PROJ-123')
-        summary: Brief summary of findings
-    """
-    if not hasattr(agent, "team_session_state") or agent.team_session_state is None:
-        return "No team session state available"
-
-    analyzed_tickets = agent.team_session_state.get("analyzed_tickets", [])
-
-    # Check if ticket is already tracked
-    for ticket in analyzed_tickets:
-        if ticket["key"] == ticket_key:
-            ticket["summary"] = summary
-            return f"Updated analysis record for {ticket_key}"
-
-    # Add new ticket
-    analyzed_tickets.append({"key": ticket_key, "summary": summary, "analyzed_by": agent.name})
-    agent.team_session_state["analyzed_tickets"] = analyzed_tickets
-
-    return f"Recorded analysis of {ticket_key} by {agent.name}"
-
-
-def record_pr_analysis(agent, repo: str, pr_number: int, summary: str) -> str:
-    """Record that a GitHub PR has been analyzed (agent tool).
-
-    Args:
-        agent: The agent instance
-        repo: Repository name (e.g., 'owner/repo')
-        pr_number: PR number
-        summary: Brief summary of findings
-    """
-    if not hasattr(agent, "team_session_state") or agent.team_session_state is None:
-        return "No team session state available"
-
-    analyzed_prs = agent.team_session_state.get("analyzed_prs", [])
-    pr_key = f"{repo}#{pr_number}"
-
-    # Check if PR is already tracked
-    for pr in analyzed_prs:
-        if pr["key"] == pr_key:
-            pr["summary"] = summary
-            return f"Updated analysis record for {pr_key}"
-
-    # Add new PR
-    analyzed_prs.append(
-        {"key": pr_key, "repo": repo, "number": pr_number, "summary": summary, "analyzed_by": agent.name}
-    )
-    agent.team_session_state["analyzed_prs"] = analyzed_prs
-
-    return f"Recorded analysis of {pr_key} by {agent.name}"
-
-
-def create_ticket_pr_link(agent, ticket_key: str, repo: str, pr_number: int, relationship: str = "related") -> str:
-    """Create a link between Jira ticket and GitHub PR (agent tool).
-
-    Args:
-        agent: The agent instance
-        ticket_key: Jira ticket key
-        repo: Repository name
-        pr_number: PR number
-        relationship: Type of relationship (implements, fixes, relates_to, etc.)
-    """
-    if not hasattr(agent, "team_session_state") or agent.team_session_state is None:
-        return "No team session state available"
-
-    links = agent.team_session_state.get("ticket_pr_links", {})
-    pr_key = f"{repo}#{pr_number}"
-
-    if ticket_key not in links:
-        links[ticket_key] = []
-
-    # Check if link already exists
-    for link in links[ticket_key]:
-        if link["pr_key"] == pr_key:
-            link["relationship"] = relationship
-            return f"Updated link: {ticket_key} {relationship} {pr_key}"
-
-    # Add new link
-    links[ticket_key].append(
-        {
-            "pr_key": pr_key,
-            "repo": repo,
-            "pr_number": pr_number,
-            "relationship": relationship,
-            "discovered_by": agent.name,
-        }
-    )
-    agent.team_session_state["ticket_pr_links"] = links
-
-    return f"Created link: {ticket_key} {relationship} {pr_key} (discovered by {agent.name})"
-
-
-def get_analyzed_items(agent) -> str:
-    """Get what has been analyzed so far in this session (agent tool).
-
-    Args:
-        agent: The agent instance
-    """
-    if not hasattr(agent, "team_session_state") or agent.team_session_state is None:
-        return "No team session state available"
-
-    analyzed_tickets = agent.team_session_state.get("analyzed_tickets", [])
-    analyzed_prs = agent.team_session_state.get("analyzed_prs", [])
-    links = agent.team_session_state.get("ticket_pr_links", {})
-
-    result = []
-
-    if analyzed_tickets:
-        result.append(f"Analyzed Tickets: {', '.join([t['key'] for t in analyzed_tickets])}")
-
-    if analyzed_prs:
-        result.append(f"Analyzed PRs: {', '.join([p['key'] for p in analyzed_prs])}")
-
-    if links:
-        link_count = sum(len(pr_links) for pr_links in links.values())
-        result.append(f"Discovered Links: {link_count} connections between tickets and PRs")
-
-    return "; ".join(result) if result else "No items analyzed yet in this session"
+from ..tools.state_management import StateManagementToolkit
 
 
 class TagTeam:
@@ -399,8 +116,7 @@ class TagTeam:
             jira_agent.name = "Jira Specialist"
             jira_agent.role = "Manages Jira tickets, searches issues, and extracts ticket information"
             jira_agent.memory = self._memory  # Add shared memory for chat history
-            # Add state-aware tools for tracking analysis
-            jira_agent.tools.extend([record_ticket_analysis, create_ticket_pr_link, get_analyzed_items])
+
             # Get original instructions and add team coordination instructions
             original_instructions = jira_agent_factory.get_agent_instructions()
             team_instructions = [
@@ -408,9 +124,8 @@ class TagTeam:
                 "- Share relevant ticket information for GitHub operations",
                 "- Connect Jira issues to GitHub PRs when requested",
                 "- Provide context about business requirements from tickets",
-                "- Use record_ticket_analysis to track tickets you analyze",
-                "- Use create_ticket_pr_link when you discover connections to PRs",
-                "- Use get_analyzed_items to see what has been analyzed previously",
+                "- Use the shared team session state to track your analysis work",
+                "- The team will have generic state management tools you can request",
                 "Be concise but thorough in your responses to support team coordination.",
             ]
             jira_agent.instructions = original_instructions + team_instructions
@@ -424,8 +139,7 @@ class TagTeam:
             github_agent.name = "GitHub Specialist"
             github_agent.role = "Manages GitHub repositories, pull requests, and code analysis"
             github_agent.memory = self._memory  # Add shared memory for chat history
-            # Add state-aware tools for tracking analysis
-            github_agent.tools.extend([record_pr_analysis, create_ticket_pr_link, get_analyzed_items])
+
             # Get original instructions and add team coordination instructions
             original_instructions = github_agent_factory.get_agent_instructions()
             team_instructions = [
@@ -433,9 +147,8 @@ class TagTeam:
                 "- Connect GitHub PRs to Jira tickets when requested",
                 "- Provide technical context about code changes",
                 "- Help identify relevant repositories for specific tasks",
-                "- Use record_pr_analysis to track PRs you analyze",
-                "- Use create_ticket_pr_link when you discover connections to tickets",
-                "- Use get_analyzed_items to see what has been analyzed previously",
+                "- Use the shared team session state to track your analysis work",
+                "- The team will have generic state management tools you can request",
                 "Be concise but thorough in your responses to support team coordination.",
             ]
             github_agent.instructions = original_instructions + team_instructions
@@ -458,6 +171,9 @@ class TagTeam:
                 "specialist_interactions": 0,
                 "session_metrics": {},
             }
+
+            # Create async state management toolkit for the team
+            state_toolkit = StateManagementToolkit(team_session_state)
 
             # Create the coordinate mode team
             self._team = Team(
@@ -484,24 +200,18 @@ class TagTeam:
                     "- PR review: Get PR details from GitHub, then check for linked Jira tickets",
                     "- Feature tracking: Connect Jira feature tickets to GitHub implementation PRs",
                     "- Bug investigation: Link Jira bug reports to GitHub fixes and code changes",
-                    "Available team management tools:",
-                    "- get_session_context: See what has been analyzed in this session",
-                    "- set_investigation_focus: Set current investigation focus",
-                    "- track_ticket_analysis/track_pr_analysis: Track analysis progress",
-                    "- link_ticket_to_pr: Create explicit links between tickets and PRs",
+                    "Available generic state management tools:",
+                    "- set_state_value: Set any value in the session state",
+                    "- track_item: Track items in collections (tickets, PRs, etc.)",
+                    "- link_items: Create relationships between any items",
+                    "- get_state_summary: Get a summary of the current session state",
+                    "Use these tools creatively to track progress, maintain context, and coordinate work.",
                     "Always provide clear, actionable responses that leverage insights from both platforms.",
                     "When information is requested from both platforms, ensure responses are well-integrated.",
                     "You have access to the conversation history and shared session state.",
                     "Use the session context to avoid redundant analysis and build on previous work.",
                 ],
-                tools=[
-                    get_session_context,
-                    set_investigation_focus,
-                    track_ticket_analysis,
-                    track_pr_analysis,
-                    link_ticket_to_pr,
-                    update_user_preferences,
-                ],
+                tools=[state_toolkit],
                 team_session_state=team_session_state,  # Shared state for all team members
                 session_state=team_private_state,  # Team leader's private state
                 storage=storage,
