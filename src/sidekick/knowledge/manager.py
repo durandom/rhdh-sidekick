@@ -11,10 +11,13 @@ from pathlib import Path
 
 from agno.document.chunking.markdown import MarkdownChunking
 from agno.document.reader.markdown_reader import MarkdownReader
+from agno.document.reader.pdf_reader import PDFReader
 from agno.embedder.google import GeminiEmbedder
 from agno.knowledge import AgentKnowledge
+from agno.knowledge.combined import CombinedKnowledgeBase
+from agno.knowledge.csv import CSVKnowledgeBase
 from agno.knowledge.markdown import MarkdownKnowledgeBase
-from agno.knowledge.pdf import PDFKnowledgeBase, PDFReader
+from agno.knowledge.pdf import PDFKnowledgeBase
 from agno.vectordb.lancedb import LanceDb, SearchType
 from loguru import logger
 
@@ -22,7 +25,7 @@ from .chunking import FixedSizeChunking
 
 
 class KnowledgeManager:
-    """Manages RHDH documentation knowledge base with vector storage for both markdown and PDF files."""
+    """Manages RHDH documentation knowledge base with vector storage for markdown, PDF, and CSV files."""
 
     def __init__(
         self,
@@ -113,34 +116,60 @@ class KnowledgeManager:
         """
         asyncio.run(self.reindex())
 
-    def _count_documents(self) -> tuple[list[Path], list[Path]]:
-        """Count and return markdown and PDF files in the knowledge path."""
+    def _count_documents(self) -> tuple[list[Path], list[Path], list[Path]]:
+        """Count and return markdown, PDF, and CSV files in the knowledge path."""
         md_files = list(self.knowledge_path.rglob("*.md"))
         pdf_files = list(self.knowledge_path.rglob("*.pdf"))
-        return md_files, pdf_files
+        csv_files = list(self.knowledge_path.rglob("*.csv"))
+        return md_files, pdf_files, csv_files
 
-    def _create_knowledge_base(self, vector_db: LanceDb, pdf_files: list[Path]) -> AgentKnowledge:
+    def _create_knowledge_base(
+        self, vector_db: LanceDb, md_files: list[Path], pdf_files: list[Path], csv_files: list[Path]
+    ) -> AgentKnowledge:
         """Create appropriate knowledge base instance based on available files."""
         # Create chunking strategy with 20,000 character chunks
         chunking_strategy = FixedSizeChunking(chunk_size=20000, overlap=200)
-        # this doestn't seem to work, see below with the markdown reader
-        if pdf_files:
-            logger.debug("Creating PDFKnowledgeBase with FixedSizeChunking (20k chars)")
-            return PDFKnowledgeBase(
-                path=self.knowledge_path,
-                vector_db=vector_db,
-                reader=PDFReader(chunk=True),
-                chunking_strategy=chunking_strategy,
-            )
-        else:
-            logger.debug("Creating MarkdownKnowledgeBase with FixedSizeChunking (20k chars)")
-            return MarkdownKnowledgeBase(
+
+        sources: list[AgentKnowledge] = []
+
+        # Add markdown knowledge base if we have markdown files
+        if md_files:
+            logger.debug("Adding MarkdownKnowledgeBase to combined knowledge base")
+            md_kb = MarkdownKnowledgeBase(
                 path=self.knowledge_path,
                 vector_db=vector_db,
                 chunking_strategy=chunking_strategy,
                 num_documents=5,
                 reader=MarkdownReader(chunking_strategy=MarkdownChunking(chunk_size=1000000, overlap=200)),
             )
+            sources.append(md_kb)
+
+        # Add PDF knowledge base if we have PDF files
+        if pdf_files:
+            logger.debug("Adding PDFKnowledgeBase to combined knowledge base")
+            pdf_kb = PDFKnowledgeBase(
+                path=self.knowledge_path,
+                vector_db=vector_db,
+                reader=PDFReader(chunk=True),
+                chunking_strategy=chunking_strategy,
+            )
+            sources.append(pdf_kb)
+
+        # Add CSV knowledge base if we have CSV files
+        if csv_files:
+            logger.debug("Adding CSVKnowledgeBase to combined knowledge base")
+            csv_kb = CSVKnowledgeBase(
+                path=self.knowledge_path,
+                vector_db=vector_db,
+            )
+            sources.append(csv_kb)
+
+        logger.debug(f"Creating CombinedKnowledgeBase with {len(sources)} sources")
+        return CombinedKnowledgeBase(
+            sources=sources,
+            vector_db=vector_db,
+            num_documents=5,
+        )
 
     async def aload_knowledge(self, recreate: bool = False, force_reload: bool = False) -> AgentKnowledge:
         """
@@ -151,7 +180,7 @@ class KnowledgeManager:
             force_reload: If True, reload documents even if table exists
 
         Returns:
-            AgentKnowledge instance with loaded RHDH docs (markdown + PDF)
+            AgentKnowledge instance with loaded RHDH docs (markdown + PDF + CSV)
 
         Raises:
             FileNotFoundError: If knowledge path doesn't exist
@@ -170,9 +199,9 @@ class KnowledgeManager:
             self._vector_db = vector_db
 
             # Count documents for reference
-            md_files, pdf_files = self._count_documents()
+            md_files, pdf_files, csv_files = self._count_documents()
 
-            if not md_files and not pdf_files:
+            if not md_files and not pdf_files and not csv_files:
                 raise RuntimeError(f"No supported documents found in {self.knowledge_path}")
 
             # Check if table exists and has data
@@ -185,34 +214,31 @@ class KnowledgeManager:
                 )
 
                 # Create knowledge base object without loading documents
-                self._knowledge = self._create_knowledge_base(vector_db, pdf_files)
+                self._knowledge = self._create_knowledge_base(vector_db, md_files, pdf_files, csv_files)
 
                 logger.info(
                     f"Knowledge base ready (using existing data). "
-                    f"Available: {len(md_files)} markdown and {len(pdf_files)} PDF files"
+                    f"Available: {len(md_files)} markdown, {len(pdf_files)} PDF, and {len(csv_files)} CSV files"
                 )
 
                 return self._knowledge
 
             # Table doesn't exist or force_reload requested - load documents
             logger.info(f"Loading knowledge base from {self.knowledge_path}")
-            logger.debug(f"Found {len(md_files)} markdown and {len(pdf_files)} PDF files")
+            logger.debug(f"Found {len(md_files)} markdown, {len(pdf_files)} PDF, and {len(csv_files)} CSV files")
 
             # Create and load knowledge base
-            self._knowledge = self._create_knowledge_base(vector_db, pdf_files)
+            self._knowledge = self._create_knowledge_base(vector_db, md_files, pdf_files, csv_files)
 
-            if pdf_files:
-                logger.info("Using PDFKnowledgeBase to process PDF documents")
-            else:
-                logger.info("Using MarkdownKnowledgeBase to process markdown documents")
+            logger.info("Using CombinedKnowledgeBase to process document types")
 
             # Load the knowledge base asynchronously
             logger.debug(f"Loading knowledge base asynchronously (recreate={recreate})")
             await self._knowledge.aload(recreate=recreate)
 
             logger.info(
-                f"Knowledge base loaded successfully with {len(md_files)} markdown "
-                f"and {len(pdf_files)} PDF files available"
+                f"Knowledge base loaded successfully with {len(md_files)} markdown, "
+                f"{len(pdf_files)} PDF, and {len(csv_files)} CSV files available"
             )
 
             return self._knowledge
@@ -230,7 +256,7 @@ class KnowledgeManager:
             force_reload: If True, reload documents even if table exists
 
         Returns:
-            AgentKnowledge instance with loaded RHDH docs (markdown + PDF)
+            AgentKnowledge instance with loaded RHDH docs (markdown + PDF + CSV)
 
         Raises:
             FileNotFoundError: If knowledge path doesn't exist
