@@ -116,11 +116,25 @@ class KnowledgeManager:
         """
         asyncio.run(self.reindex())
 
-    def _count_documents(self) -> tuple[list[Path], list[Path], list[Path]]:
-        """Count and return markdown, PDF, and CSV files in the knowledge path."""
-        md_files = list(self.knowledge_path.rglob("*.md"))
-        pdf_files = list(self.knowledge_path.rglob("*.pdf"))
-        csv_files = list(self.knowledge_path.rglob("*.csv"))
+    def _count_documents(self, min_size_bytes: int = 50) -> tuple[list[Path], list[Path], list[Path]]:
+        """Count and return markdown, PDF, and CSV files in the knowledge path, excluding small/empty files."""
+
+        def filter_by_size(files: list[Path]) -> list[Path]:
+            """Filter files by minimum size to exclude empty or very small files."""
+            filtered = []
+            for file_path in files:
+                try:
+                    if file_path.stat().st_size >= min_size_bytes:
+                        filtered.append(file_path)
+                    else:
+                        logger.debug(f"Skipping small file ({file_path.stat().st_size} bytes): {file_path}")
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Error checking file size for {file_path}: {e}")
+            return filtered
+
+        md_files = filter_by_size(list(self.knowledge_path.rglob("*.md")))
+        pdf_files = filter_by_size(list(self.knowledge_path.rglob("*.pdf")))
+        csv_files = filter_by_size(list(self.knowledge_path.rglob("*.csv")))
         return md_files, pdf_files, csv_files
 
     def _create_knowledge_base(
@@ -134,9 +148,9 @@ class KnowledgeManager:
 
         # Add markdown knowledge base if we have markdown files
         if md_files:
-            logger.debug("Adding MarkdownKnowledgeBase to combined knowledge base")
+            logger.debug(f"Adding MarkdownKnowledgeBase with {len(md_files)} files to combined knowledge base")
             md_kb = MarkdownKnowledgeBase(
-                path=self.knowledge_path,
+                path=[{"path": str(f)} for f in md_files],  # Pass filtered file list as dict format
                 vector_db=vector_db,
                 chunking_strategy=chunking_strategy,
                 num_documents=5,
@@ -146,9 +160,9 @@ class KnowledgeManager:
 
         # Add PDF knowledge base if we have PDF files
         if pdf_files:
-            logger.debug("Adding PDFKnowledgeBase to combined knowledge base")
+            logger.debug(f"Adding PDFKnowledgeBase with {len(pdf_files)} files to combined knowledge base")
             pdf_kb = PDFKnowledgeBase(
-                path=self.knowledge_path,
+                path=[{"path": str(f)} for f in pdf_files],  # Pass filtered file list as dict format
                 vector_db=vector_db,
                 reader=PDFReader(chunk=True),
                 chunking_strategy=chunking_strategy,
@@ -157,9 +171,9 @@ class KnowledgeManager:
 
         # Add CSV knowledge base if we have CSV files
         if csv_files:
-            logger.debug("Adding CSVKnowledgeBase to combined knowledge base")
+            logger.debug(f"Adding CSVKnowledgeBase with {len(csv_files)} files to combined knowledge base")
             csv_kb = CSVKnowledgeBase(
-                path=self.knowledge_path,
+                path=[{"path": str(f)} for f in csv_files],  # Pass filtered file list as dict format
                 vector_db=vector_db,
             )
             sources.append(csv_kb)
