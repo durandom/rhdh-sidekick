@@ -3,8 +3,9 @@
 import io
 import re
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlparse
 
 import google.auth.transport.requests
@@ -16,6 +17,15 @@ from googleapiclient.http import MediaIoBaseDownload
 from html_to_markdown import convert_to_markdown
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
+
+
+class DocumentType(Enum):
+    """Google Drive document types."""
+
+    DOCUMENT = "document"
+    SPREADSHEET = "spreadsheet"
+    PRESENTATION = "presentation"
+    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -42,14 +52,32 @@ class GoogleDriveExporterConfig(BaseModel):
     credentials_path: Path = Field(default=Path(".client_secret.googleusercontent.com.json"))
     token_path: Path = Field(default=Path("tmp/token_drive.json"))
     target_directory: Path = Field(default=Path("exports"))
-    export_format: Literal["pdf", "docx", "odt", "rtf", "txt", "html", "epub", "zip", "md", "all"] = "html"
+    export_format: Literal[
+        "pdf",
+        "docx",
+        "odt",
+        "rtf",
+        "txt",
+        "html",
+        "epub",
+        "zip",
+        "md",
+        "xlsx",
+        "ods",
+        "csv",
+        "tsv",
+        "pptx",
+        "odp",
+        "all",
+    ] = "html"
     link_depth: int = Field(default=0, ge=0, le=5)
     follow_links: bool = Field(default=False)
     scopes: list[str] = Field(
         default_factory=lambda: [
-            "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/drive.metadata.readonly",
-            "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/presentations",
         ]
     )
 
@@ -63,7 +91,8 @@ class GoogleDriveExporterConfig(BaseModel):
 class GoogleDriveExporter:
     """Export Google Drive documents in various formats with link following capabilities."""
 
-    EXPORT_FORMATS: dict[str, ExportFormat] = {
+    # Document export formats
+    DOCUMENT_EXPORT_FORMATS: dict[str, ExportFormat] = {
         "pdf": ExportFormat(extension="pdf", mime_type="application/pdf", description="Portable Document Format"),
         "docx": ExportFormat(
             extension="docx",
@@ -80,6 +109,44 @@ class GoogleDriveExporter:
         "zip": ExportFormat(extension="zip", mime_type="application/zip", description="HTML Zipped"),
         "md": ExportFormat(extension="md", mime_type="text/html", description="Markdown Document"),
     }
+
+    # Spreadsheet export formats
+    SPREADSHEET_EXPORT_FORMATS: dict[str, ExportFormat] = {
+        "pdf": ExportFormat(extension="pdf", mime_type="application/pdf", description="Portable Document Format"),
+        "xlsx": ExportFormat(
+            extension="xlsx",
+            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            description="Microsoft Excel",
+        ),
+        "ods": ExportFormat(
+            extension="ods",
+            mime_type="application/x-vnd.oasis.opendocument.spreadsheet",
+            description="OpenDocument Spreadsheet",
+        ),
+        "csv": ExportFormat(extension="csv", mime_type="text/csv", description="Comma-Separated Values"),
+        "tsv": ExportFormat(extension="tsv", mime_type="text/tab-separated-values", description="Tab-Separated Values"),
+        "zip": ExportFormat(extension="zip", mime_type="application/zip", description="HTML Zipped"),
+    }
+
+    # Presentation export formats
+    PRESENTATION_EXPORT_FORMATS: dict[str, ExportFormat] = {
+        "pptx": ExportFormat(
+            extension="pptx",
+            mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            description="Microsoft PowerPoint",
+        ),
+        "odp": ExportFormat(
+            extension="odp",
+            mime_type="application/vnd.oasis.opendocument.presentation",
+            description="OpenDocument Presentation",
+        ),
+        "pdf": ExportFormat(extension="pdf", mime_type="application/pdf", description="Portable Document Format"),
+        "txt": ExportFormat(extension="txt", mime_type="text/plain", description="Plain Text"),
+        "html": ExportFormat(extension="html", mime_type="text/html", description="HTML Document"),
+    }
+
+    # Combined formats for backward compatibility
+    EXPORT_FORMATS: dict[str, ExportFormat] = DOCUMENT_EXPORT_FORMATS
 
     def __init__(self, config: GoogleDriveExporterConfig | None = None, download_callback=None):
         """Initialize the exporter with configuration.
@@ -131,7 +198,7 @@ class GoogleDriveExporter:
             with open(self.config.token_path, "w") as token:
                 token.write(creds.to_json())
 
-        return creds
+        return cast(Credentials, creds)
 
     def get_authenticated_user_info(self) -> dict:
         """Get information about the currently authenticated user.
@@ -159,10 +226,14 @@ class GoogleDriveExporter:
         """
         # If it looks like a URL
         if url_or_id.startswith(("http://", "https://")):
-            # Match various Google Doc URL patterns (including tab parameters)
+            # Match various Google Drive URL patterns (including tab parameters)
             patterns = [
                 r"/document/d/([a-zA-Z0-9-_]+)",
                 r"/document/u/\d+/d/([a-zA-Z0-9-_]+)",
+                r"/spreadsheets/d/([a-zA-Z0-9-_]+)",
+                r"/spreadsheets/u/\d+/d/([a-zA-Z0-9-_]+)",
+                r"/presentation/d/([a-zA-Z0-9-_]+)",
+                r"/presentation/u/\d+/d/([a-zA-Z0-9-_]+)",
                 r"/open\?id=([a-zA-Z0-9-_]+)",
                 r"id=([a-zA-Z0-9-_]+)",
             ]
@@ -183,6 +254,48 @@ class GoogleDriveExporter:
 
         # Assume it's already a document ID
         return url_or_id
+
+    def detect_document_type(self, url_or_id: str) -> DocumentType:
+        """Detect the type of Google Drive document from URL.
+
+        Args:
+            url_or_id: Google Drive URL or document ID.
+
+        Returns:
+            DocumentType enum value.
+        """
+        # If it's just an ID, we'll need to get metadata to determine type
+        if not url_or_id.startswith(("http://", "https://")):
+            return DocumentType.UNKNOWN
+
+        # Check URL patterns
+        if "/spreadsheets/" in url_or_id or "sheets.google.com" in url_or_id:
+            return DocumentType.SPREADSHEET
+        elif "/presentation/" in url_or_id or "slides.google.com" in url_or_id:
+            return DocumentType.PRESENTATION
+        elif "/document/" in url_or_id or "docs.google.com" in url_or_id:
+            return DocumentType.DOCUMENT
+        else:
+            return DocumentType.UNKNOWN
+
+    def detect_document_type_from_metadata(self, metadata: dict) -> DocumentType:
+        """Detect document type from metadata mime type.
+
+        Args:
+            metadata: Document metadata dictionary.
+
+        Returns:
+            DocumentType enum value.
+        """
+        mime_type = metadata.get("mimeType", "")
+
+        mime_type_mapping = {
+            "application/vnd.google-apps.spreadsheet": DocumentType.SPREADSHEET,
+            "application/vnd.google-apps.presentation": DocumentType.PRESENTATION,
+            "application/vnd.google-apps.document": DocumentType.DOCUMENT,
+        }
+
+        return mime_type_mapping.get(mime_type, DocumentType.UNKNOWN)
 
     def parse_config_file(self, config_path: Path) -> list[DocumentConfig]:
         """Parse the mirror configuration file.
@@ -266,35 +379,135 @@ class GoogleDriveExporter:
 
         return DocumentConfig(url=url, document_id=document_id, depth=depth, comment=comment)
 
-    def get_document_metadata(self, document_id: str) -> dict:
-        """Get metadata for a document using Google Docs API.
+    def get_document_metadata(self, document_id: str, doc_type: DocumentType | None = None) -> dict[str, Any]:
+        """Get metadata for a document using multiple fallback methods.
 
         Args:
             document_id: Google Drive document ID.
+            doc_type: Optional document type hint.
 
         Returns:
             Document metadata including name and mime type.
         """
         try:
-            # Create Docs service if we don't have one
-            if not hasattr(self, "_docs_service"):
-                creds = self._authenticate()
-                self._docs_service = build("docs", "v1", credentials=creds)
+            # Method 1: Try with supportsAllDrives=True first (most likely to work)
+            try:
+                logger.debug("Trying Method 1: files().get() with supportsAllDrives=True...")
+                metadata = (
+                    self.service.files()
+                    .get(
+                        fileId=document_id,
+                        fields="name,mimeType,modifiedTime,owners,createdTime",
+                        supportsAllDrives=True,
+                    )
+                    .execute()
+                )
+                logger.debug(f"✅ Method 1 Success: {metadata.get('name')}")
+                return cast(dict[str, Any], metadata)
+            except HttpError as drive_error:
+                logger.debug(f"❌ Method 1 Failed: {drive_error}")
+                # Continue to next method
 
-            # Get document via Docs API
-            doc = self._docs_service.documents().get(documentId=document_id).execute()
+            # Method 2: Standard files().get() API
+            try:
+                logger.debug("Trying Method 2: files().get() API...")
+                metadata = (
+                    self.service.files()
+                    .get(fileId=document_id, fields="name,mimeType,modifiedTime,owners,createdTime")
+                    .execute()
+                )
+                logger.debug(f"✅ Method 2 Success: {metadata.get('name')}")
+                return cast(dict[str, Any], metadata)
+            except HttpError as drive_error:
+                logger.debug(f"❌ Method 2 Failed: {drive_error}")
+                # If Drive API fails, try specific document APIs based on type
+                if drive_error.resp.status == 404 and doc_type and doc_type != DocumentType.UNKNOWN:
+                    logger.debug(f"Drive API failed, trying {doc_type.value} API")
+                else:
+                    raise
 
-            # Create metadata dict similar to Drive API response
-            docs_metadata = {
-                "name": doc.get("title", "untitled"),
-                "mimeType": "application/vnd.google-apps.document",
-                "modifiedTime": doc.get("revisionId"),  # Not the same, but something
-                "owners": [],  # Not available via Docs API
-                "createdTime": None,  # Not available via Docs API
+            # Method 4: Try Google Docs API directly (if available) based on document type
+            if doc_type == DocumentType.DOCUMENT:
+                try:
+                    logger.debug("Trying Method 4: Build separate docs service...")
+                    # Create Docs service if we don't have one
+                    if not hasattr(self, "_docs_service"):
+                        creds = self._authenticate()
+                        self._docs_service = build("docs", "v1", credentials=creds)
+
+                    # Get document via Docs API
+                    doc = self._docs_service.documents().get(documentId=document_id).execute()
+
+                    # Create metadata dict similar to Drive API response
+                    docs_metadata = {
+                        "name": doc.get("title", "untitled"),
+                        "mimeType": "application/vnd.google-apps.document",
+                        "modifiedTime": doc.get("revisionId"),  # Not the same, but something
+                        "owners": [],  # Not available via Docs API
+                        "createdTime": None,  # Not available via Docs API
+                    }
+
+                    logger.debug(f"✅ Method 4 Success: {docs_metadata.get('name')}")
+                    return docs_metadata
+                except Exception as e:
+                    logger.debug(f"❌ Method 4 Failed: {e}")
+
+            elif doc_type == DocumentType.SPREADSHEET:
+                try:
+                    logger.debug("Trying Method 4: Build separate sheets service...")
+                    # Create Sheets service if we don't have one
+                    if not hasattr(self, "_sheets_service"):
+                        creds = self._authenticate()
+                        self._sheets_service = build("sheets", "v4", credentials=creds)
+
+                    # Get spreadsheet metadata
+                    sheet = self._sheets_service.spreadsheets().get(spreadsheetId=document_id).execute()
+
+                    sheets_metadata = {
+                        "name": sheet.get("properties", {}).get("title", "untitled"),
+                        "mimeType": "application/vnd.google-apps.spreadsheet",
+                        "modifiedTime": None,
+                        "owners": [],
+                        "createdTime": None,
+                    }
+
+                    logger.debug(f"✅ Method 4 Success: {sheets_metadata.get('name')}")
+                    return sheets_metadata
+                except Exception as e:
+                    logger.debug(f"❌ Method 4 Failed: {e}")
+
+            elif doc_type == DocumentType.PRESENTATION:
+                try:
+                    logger.debug("Trying Method 4: Build separate slides service...")
+                    # Create Slides service if we don't have one
+                    if not hasattr(self, "_slides_service"):
+                        creds = self._authenticate()
+                        self._slides_service = build("slides", "v1", credentials=creds)
+
+                    # Get presentation metadata
+                    presentation = self._slides_service.presentations().get(presentationId=document_id).execute()
+
+                    slides_metadata = {
+                        "name": presentation.get("title", "untitled"),
+                        "mimeType": "application/vnd.google-apps.presentation",
+                        "modifiedTime": presentation.get("revisionId"),
+                        "owners": [],
+                        "createdTime": None,
+                    }
+
+                    logger.debug(f"✅ Method 4 Success: {slides_metadata.get('name')}")
+                    return slides_metadata
+                except Exception as e:
+                    logger.debug(f"❌ Method 4 Failed: {e}")
+
+            logger.debug("🔄 All methods failed, using 'untitled'")
+            return {
+                "name": "untitled",
+                "mimeType": "application/octet-stream",
+                "modifiedTime": None,
+                "owners": [],
+                "createdTime": None,
             }
-
-            logger.debug(f"Got metadata via Docs API: {docs_metadata.get('name')}")
-            return docs_metadata
 
         except HttpError as error:
             if error.resp.status == 404:
@@ -303,7 +516,14 @@ class GoogleDriveExporter:
                 logger.error("1. Document is not shared with your OAuth account")
                 logger.error("2. Document doesn't exist or was deleted")
                 logger.error("3. You're using a different Google account in your browser")
-                logger.error(f"Document URL: https://docs.google.com/document/d/{document_id}/edit")
+
+                # Provide appropriate URL based on document type
+                if doc_type == DocumentType.SPREADSHEET:
+                    logger.error(f"Spreadsheet URL: https://docs.google.com/spreadsheets/d/{document_id}/edit")
+                elif doc_type == DocumentType.PRESENTATION:
+                    logger.error(f"Presentation URL: https://docs.google.com/presentation/d/{document_id}/edit")
+                else:
+                    logger.error(f"Document URL: https://docs.google.com/document/d/{document_id}/edit")
             elif error.resp.status == 403:
                 logger.error(f"Permission denied for document: {document_id}")
                 logger.error("The document exists but you don't have access permissions")
@@ -311,27 +531,46 @@ class GoogleDriveExporter:
                 logger.error(f"Failed to get document metadata: {error}")
             raise
 
-    def _export_single_format(self, document_id: str, format_key: str, output_path: Path) -> bool:
+    def _export_single_format(
+        self, document_id: str, format_key: str, output_path: Path, doc_type: DocumentType | None = None
+    ) -> bool:
         """Export document in a single format.
 
         Args:
             document_id: Google Drive document ID.
             format_key: Format key from EXPORT_FORMATS.
             output_path: Path to save the exported file.
+            doc_type: Document type to determine appropriate export formats.
 
         Returns:
             True if export successful, False otherwise.
         """
-        if format_key not in self.EXPORT_FORMATS:
-            logger.error(f"Unknown format: {format_key}")
+        # Get appropriate export formats based on document type
+        if doc_type == DocumentType.SPREADSHEET:
+            export_formats = self.SPREADSHEET_EXPORT_FORMATS
+        elif doc_type == DocumentType.PRESENTATION:
+            export_formats = self.PRESENTATION_EXPORT_FORMATS
+        else:
+            # Default to document formats
+            export_formats = self.DOCUMENT_EXPORT_FORMATS
+
+        if format_key not in export_formats:
+            logger.error(f"Format '{format_key}' not supported for {doc_type.value if doc_type else 'document'} type")
             return False
 
-        export_format = self.EXPORT_FORMATS[format_key]
+        export_format = export_formats[format_key]
 
         try:
             # For markdown, we need to first export as HTML then convert
             if format_key == "md":
-                # Export as HTML first
+                # Markdown is only supported for documents (not spreadsheets or presentations)
+                if doc_type == DocumentType.SPREADSHEET:
+                    logger.warning("Markdown export not supported for spreadsheets")
+                    return False
+                elif doc_type == DocumentType.PRESENTATION:
+                    logger.warning("Markdown export not supported for presentations")
+                    return False
+                # Export as HTML first for documents
                 request = self.service.files().export_media(fileId=document_id, mimeType="text/html")
             else:
                 request = self.service.files().export_media(fileId=document_id, mimeType=export_format.mime_type)
@@ -372,7 +611,10 @@ class GoogleDriveExporter:
             return True
 
         except HttpError as error:
-            logger.error(f"Failed to export {format_key}: {error}")
+            if "The requested conversion is not supported" in str(error):
+                logger.warning(f"Format {format_key} not supported for this document type")
+            else:
+                logger.error(f"Failed to export {format_key}: {error}")
 
             # Call download callback on failure
             if self.download_callback:
@@ -400,8 +642,16 @@ class GoogleDriveExporter:
             patterns = [
                 # Direct Google Docs/Drive links
                 r'href="https://(?:docs\.google\.com/document/(?:u/\d+/)?d/|drive\.google\.com/file/d/|drive\.google\.com/open\?id=)([a-zA-Z0-9-_]+)',
+                # Direct Google Sheets links
+                r'href="https://(?:docs\.google\.com/spreadsheets/(?:u/\d+/)?d/|sheets\.google\.com/spreadsheets/d/)([a-zA-Z0-9-_]+)',
+                # Direct Google Slides links
+                r'href="https://(?:docs\.google\.com/presentation/(?:u/\d+/)?d/|slides\.google\.com/presentation/d/)([a-zA-Z0-9-_]+)',
                 # Google-wrapped redirect URLs containing docs.google.com
                 r'href="https://www\.google\.com/url\?q=https://docs\.google\.com/document/(?:u/\d+/)?d/([a-zA-Z0-9-_]+)',
+                # Google-wrapped redirect URLs containing sheets
+                r'href="https://www\.google\.com/url\?q=https://docs\.google\.com/spreadsheets/(?:u/\d+/)?d/([a-zA-Z0-9-_]+)',
+                # Google-wrapped redirect URLs containing slides
+                r'href="https://www\.google\.com/url\?q=https://docs\.google\.com/presentation/(?:u/\d+/)?d/([a-zA-Z0-9-_]+)',
                 # Google-wrapped redirect URLs with drive.google.com
                 r'href="https://www\.google\.com/url\?q=https://drive\.google\.com/(?:file/d/|open\?id=)([a-zA-Z0-9-_]+)',
             ]
@@ -441,6 +691,8 @@ class GoogleDriveExporter:
         Returns:
             Dictionary mapping format names to output paths.
         """
+        # Store original for type detection
+        original_url_or_id = document_id
         document_id = self.extract_document_id(document_id)
 
         if document_id in self._processed_docs:
@@ -449,28 +701,64 @@ class GoogleDriveExporter:
 
         self._processed_docs.add(document_id)
 
-        # Get document metadata (non-fatal if it fails)
+        # First try to detect document type from URL
+        doc_type = self.detect_document_type(original_url_or_id)
+
+        # Get document metadata
         doc_title = "untitled"
+        metadata = None
         try:
-            metadata = self.get_document_metadata(document_id)
+            # First attempt without doc type hint to get metadata
+            metadata = self.get_document_metadata(document_id, None)
             doc_title = metadata.get("name", "untitled")
+
+            # If URL detection failed, try detecting from metadata
+            if doc_type == DocumentType.UNKNOWN:
+                doc_type = self.detect_document_type_from_metadata(metadata)
+                logger.debug(f"Detected document type from metadata: {doc_type.value}")
+            else:
+                logger.debug(f"Detected document type from URL: {doc_type.value}")
+
         except Exception as e:
             logger.warning(f"Could not get metadata for {document_id}, using 'untitled': {e}")
-            # Continue with export even if metadata fails
+            # If we still don't know the type, default to DOCUMENT
+            if doc_type == DocumentType.UNKNOWN:
+                doc_type = DocumentType.DOCUMENT
+                logger.debug("Defaulting to document type for unknown file")
 
         safe_title = output_name or re.sub(r"[^\w\s-]", "_", doc_title).strip()
 
         # Ensure target directory exists
         self.config.target_directory.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Exporting '{doc_title}' (ID: {document_id}) to {self.config.target_directory}")
+        logger.info(
+            f"Exporting '{doc_title}' (ID: {document_id}, type: {doc_type.value}) to {self.config.target_directory}"
+        )
 
-        # Determine formats to export
+        # Determine formats to export based on document type
         formats_to_export = []
         if self.config.export_format == "all":
-            formats_to_export = list(self.EXPORT_FORMATS.keys())
+            # Get all formats for the specific document type
+            if doc_type == DocumentType.SPREADSHEET:
+                formats_to_export = list(self.SPREADSHEET_EXPORT_FORMATS.keys())
+            elif doc_type == DocumentType.PRESENTATION:
+                formats_to_export = list(self.PRESENTATION_EXPORT_FORMATS.keys())
+            else:
+                formats_to_export = list(self.DOCUMENT_EXPORT_FORMATS.keys())
         else:
-            formats_to_export = [self.config.export_format]
+            # For specific format, check if it's supported for this document type
+            if self.config.export_format == "md":
+                # Markdown is only supported for documents
+                if doc_type == DocumentType.SPREADSHEET:
+                    logger.warning("Markdown not supported for spreadsheets, using CSV instead")
+                    formats_to_export = ["csv"]
+                elif doc_type == DocumentType.PRESENTATION:
+                    logger.warning("Markdown not supported for presentations, using PDF instead")
+                    formats_to_export = ["pdf"]
+                else:
+                    formats_to_export = [self.config.export_format]
+            else:
+                formats_to_export = [self.config.export_format]
 
         # If following links, we need HTML format for link extraction
         # Add it if not already present and we're configured to follow links
@@ -481,7 +769,22 @@ class GoogleDriveExporter:
         # Export document - files go directly in target directory
         exported_files = {}
         for format_key in formats_to_export:
-            export_format = self.EXPORT_FORMATS[format_key]
+            # Get the appropriate export format based on document type
+            if doc_type == DocumentType.SPREADSHEET:
+                if format_key not in self.SPREADSHEET_EXPORT_FORMATS:
+                    logger.warning(f"Format {format_key} not supported for spreadsheets, skipping")
+                    continue
+                export_format = self.SPREADSHEET_EXPORT_FORMATS[format_key]
+            elif doc_type == DocumentType.PRESENTATION:
+                if format_key not in self.PRESENTATION_EXPORT_FORMATS:
+                    logger.warning(f"Format {format_key} not supported for presentations, skipping")
+                    continue
+                export_format = self.PRESENTATION_EXPORT_FORMATS[format_key]
+            else:
+                if format_key not in self.DOCUMENT_EXPORT_FORMATS:
+                    logger.warning(f"Format {format_key} not supported for documents, skipping")
+                    continue
+                export_format = self.DOCUMENT_EXPORT_FORMATS[format_key]
 
             # Create filename - always use clean title for primary export
             base_filename = safe_title
@@ -490,7 +793,7 @@ class GoogleDriveExporter:
             # If file exists, just overwrite it (mirror behavior should update existing files)
             # This handles the common case where we're re-running a mirror operation
 
-            if self._export_single_format(document_id, format_key, output_path):
+            if self._export_single_format(document_id, format_key, output_path, doc_type):
                 exported_files[format_key] = output_path
 
         # Process linked documents if requested
