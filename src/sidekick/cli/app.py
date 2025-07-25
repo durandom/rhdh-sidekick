@@ -27,6 +27,7 @@ from .knowledge import knowledge_app
 from .prompts import prompts_app
 from .release_notes import release_notes_app
 from .test_analysis import test_analysis_app
+from .jira_triager import jira_triager_app
 
 load_dotenv(verbose=True)  # take environment variables
 
@@ -148,6 +149,7 @@ app.add_typer(knowledge_app)
 app.add_typer(prompts_app)
 app.add_typer(release_notes_app)
 app.add_typer(test_analysis_app)
+app.add_typer(jira_triager_app)
 
 # Add global options and commands
 console = Console()

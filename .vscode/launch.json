@@ -68,6 +68,26 @@
             }
         },
         {
+            "name": "Debug sidekick jira-triager triage",
+            "type": "python",
+            "request": "launch",
+            "module": "sidekick.cli.app",
+            "args": [
+                "-vv",
+                "jira-triager",
+                "triage",
+                "RHDHSUPP-246",
+                "--component", "",
+                "--team", ""
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
+        {
             "name": "Debug sidekick test-analysis",
             "type": "python",
             "request": "launch",
