@@ -39,20 +39,62 @@ from googleapiclient.http import MediaIoBaseDownload
 # - Client secret is shared, but tokens are personal
 # - Never commit credentials to Git
 # - Consider rotating credentials periodically
-# Scopes for Google Drive API (read-only access)
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.metadata.readonly"]
+# OAuth 2.0 Scopes for Google APIs
+# Documentation: https://developers.google.com/identity/protocols/oauth2/scopes
 
-# Available export formats for Google Docs
+SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/presentations",
+]
+
+# Test documents for development
+TEST_DOCUMENTS = {
+    "doc": {
+        "url": "https://docs.google.com/document/d/13OkypJ3u_7Jq6kEhKhjEFwHQ12oPFDKXVzFjYW4XLdk/edit",
+        "id": "13OkypJ3u_7Jq6kEhKhjEFwHQ12oPFDKXVzFjYW4XLdk",
+        "type": "document",
+    },
+    "sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1knVzlMW0l0X4c7gkoiuaGql1zuFgEGwHHBsj-ygUTnc/edit",
+        "id": "1knVzlMW0l0X4c7gkoiuaGql1zuFgEGwHHBsj-ygUTnc",
+        "type": "spreadsheet",
+    },
+    "slides": {
+        "url": "https://docs.google.com/presentation/d/1Kcrix7wfgv5Bk4yIxBLduYFmWlBpxfDZhh6QOeT8mHg/edit",
+        "id": "1Kcrix7wfgv5Bk4yIxBLduYFmWlBpxfDZhh6QOeT8mHg",
+        "type": "presentation",
+    },
+}
+
+# Available export formats by document type
 EXPORT_FORMATS = {
-    "pdf": "application/pdf",
-    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "odt": "application/vnd.oasis.opendocument.text",
-    "rtf": "application/rtf",
-    "txt": "text/plain",
-    "html": "text/html",
-    "epub": "application/epub+zip",
-    "zip": "application/zip",  # HTML zipped
+    "document": {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "odt": "application/vnd.oasis.opendocument.text",
+        "rtf": "application/rtf",
+        "txt": "text/plain",
+        "html": "text/html",
+        "epub": "application/epub+zip",
+        "zip": "application/zip",  # HTML zipped
+    },
+    "spreadsheet": {
+        "pdf": "application/pdf",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ods": "application/x-vnd.oasis.opendocument.spreadsheet",
+        "csv": "text/csv",
+        "tsv": "text/tab-separated-values",
+        "zip": "application/zip",  # HTML zipped
+    },
+    "presentation": {
+        "pdf": "application/pdf",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "odp": "application/vnd.oasis.opendocument.presentation",
+        "txt": "text/plain",
+    },
 }
 
 
@@ -79,20 +121,20 @@ def authenticate():
 def get_document_title(service, file_id):
     """Get the title of the document using multiple fallback methods"""
 
-    # Method 1: Standard files().get() API
+    # Method 1: Try with supportsAllDrives=True first (most likely to work)
     try:
-        print("Trying Method 1: files().get() API...")
-        file = service.files().get(fileId=file_id, fields="name").execute()
+        print("Trying Method 1: files().get() with supportsAllDrives=True...")
+        file = service.files().get(fileId=file_id, fields="name", supportsAllDrives=True).execute()
         title = file.get("name", "untitled")
         print(f"✅ Method 1 Success: {title}")
         return title
     except Exception as e:
         print(f"❌ Method 1 Failed: {e}")
 
-    # Method 2: Try with different fields
+    # Method 2: Standard files().get() API
     try:
-        print("Trying Method 2: files().get() with minimal fields...")
-        file = service.files().get(fileId=file_id, fields="id,name").execute()
+        print("Trying Method 2: files().get() API...")
+        file = service.files().get(fileId=file_id, fields="name").execute()
         title = file.get("name", "untitled")
         print(f"✅ Method 2 Success: {title}")
         return title
@@ -125,16 +167,6 @@ def get_document_title(service, file_id):
             return title
     except Exception as e:
         print(f"❌ Method 4 Failed: {e}")
-
-    # Method 5: Try with different scope/permissions
-    try:
-        print("Trying Method 5: files().get() with supportsAllDrives=True...")
-        file = service.files().get(fileId=file_id, fields="name", supportsAllDrives=True).execute()
-        title = file.get("name", "untitled")
-        print(f"✅ Method 5 Success: {title}")
-        return title
-    except Exception as e:
-        print(f"❌ Method 5 Failed: {e}")
 
     print("🔄 All methods failed, using 'untitled'")
     return "untitled"
@@ -169,57 +201,100 @@ def export_document(service, file_id, export_format, mime_type, output_path):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python export_gdoc_all_formats.py <DOCUMENT_ID>")
+        print("Usage: python export_gdoc_all_formats.py <DOCUMENT_ID_OR_TEST>")
+        print("\nOptions:")
+        print("  - Provide a Google Doc/Sheet/Slides ID")
+        print("  - Use 'test' to export all hardcoded test documents")
+        print("  - Use 'doc', 'sheet', or 'slides' to export specific test document")
+        print("\nTest documents:")
+        for key, doc in TEST_DOCUMENTS.items():
+            print(f"  {key}: {doc['url']}")
         print("\nWhat is a Google Doc ID?")
         print("The Document ID is the long string in the Google Docs URL.")
         print("For example, in this URL:")
         print("https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit")
         print("The Document ID is: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
-        print("\nThis script will export the document to all available formats:")
-        for fmt, _mime in EXPORT_FORMATS.items():
-            print(f"  - {fmt}")
         sys.exit(1)
 
-    document_id = sys.argv[1].strip()
-    print(f"Authenticating and fetching Google Doc with ID: {document_id}")
+    arg = sys.argv[1].strip().lower()
 
     # Authenticate and build service
     creds = authenticate()
     service = build("drive", "v3", credentials=creds)
 
-    # Get document title for naming files
-    doc_title = get_document_title(service, document_id)
-    safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in doc_title)
+    documents_to_process = []
 
-    # Create output directory
-    output_dir = f"exports_{safe_title}"
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"\nExporting '{doc_title}' to directory: {output_dir}/")
+    if arg == "test":
+        # Export all test documents
+        documents_to_process = [(doc["id"], doc["type"]) for doc in TEST_DOCUMENTS.values()]
+    elif arg in TEST_DOCUMENTS:
+        # Export specific test document
+        doc = TEST_DOCUMENTS[arg]
+        documents_to_process = [(doc["id"], doc["type"])]
+    else:
+        # Assume it's a document ID - try to detect type from file metadata
+        try:
+            file_metadata = service.files().get(fileId=arg, fields="mimeType").execute()
+            mime_type = file_metadata.get("mimeType", "")
 
-    # Export to all formats
-    print("\nExporting to all formats:")
-    successful_exports = []
+            if "document" in mime_type:
+                doc_type = "document"
+            elif "spreadsheet" in mime_type:
+                doc_type = "spreadsheet"
+            elif "presentation" in mime_type:
+                doc_type = "presentation"
+            else:
+                print(f"Unknown document type for MIME: {mime_type}")
+                doc_type = "document"  # Default fallback
 
-    for format_ext, mime_type in EXPORT_FORMATS.items():
-        output_path = os.path.join(output_dir, f"{safe_title}.{format_ext}")
-        print(f"\nExporting to {format_ext}...")
+            documents_to_process = [(arg, doc_type)]
+        except Exception as e:
+            print(f"Error detecting document type: {e}")
+            print("Defaulting to document type")
+            documents_to_process = [(arg, "document")]
 
-        if export_document(service, document_id, format_ext, mime_type, output_path):
-            successful_exports.append(format_ext)
+    # Process each document
+    for document_id, doc_type in documents_to_process:
+        print(f"\nProcessing {doc_type} with ID: {document_id}")
 
-    # Summary
-    print("\n" + "=" * 50)
-    print(f"Export complete! Successfully exported {len(successful_exports)}/{len(EXPORT_FORMATS)} formats:")
-    for fmt in successful_exports:
-        print(f"  ✅ {fmt}")
+        # Get document title for naming files
+        doc_title = get_document_title(service, document_id)
+        safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in doc_title)
 
-    print(f"\nAll files saved in: {output_dir}/")
+        # Create output directory
+        base_output_dir = "tmp/exports"
+        os.makedirs(base_output_dir, exist_ok=True)
+        output_dir = os.path.join(base_output_dir, f"{safe_title}_{doc_type}")
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"Exporting '{doc_title}' to directory: {output_dir}/")
 
-    # Special note about HTML for markdown conversion
-    if "html" in successful_exports:
-        print("\nNote: To convert to Markdown, you can use pandoc or html2text on the HTML export:")
-        print(f"  pandoc {output_dir}/{safe_title}.html -o {output_dir}/{safe_title}.md")
-        print(f"  html2text {output_dir}/{safe_title}.html > {output_dir}/{safe_title}.md")
+        # Get formats for this document type
+        formats = EXPORT_FORMATS.get(doc_type, EXPORT_FORMATS["document"])
+
+        # Export to all formats
+        print(f"\nExporting to all {doc_type} formats:")
+        successful_exports = []
+
+        for format_ext, mime_type in formats.items():
+            output_path = os.path.join(output_dir, f"{safe_title}.{format_ext}")
+            print(f"\nExporting to {format_ext}...")
+
+            if export_document(service, document_id, format_ext, mime_type, output_path):
+                successful_exports.append(format_ext)
+
+        # Summary
+        print("\n" + "=" * 50)
+        print(f"Export complete! Successfully exported {len(successful_exports)}/{len(formats)} formats:")
+        for fmt in successful_exports:
+            print(f"  ✅ {fmt}")
+
+        print(f"\nAll files saved in: {output_dir}/")
+
+        # Special note about HTML for markdown conversion
+        if "html" in successful_exports:
+            print("\nNote: To convert to Markdown, you can use pandoc or html2text on the HTML export:")
+            print(f"  pandoc {output_dir}/{safe_title}.html -o {output_dir}/{safe_title}.md")
+            print(f"  html2text {output_dir}/{safe_title}.html > {output_dir}/{safe_title}.md")
 
 
 if __name__ == "__main__":
