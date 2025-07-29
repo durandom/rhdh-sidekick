@@ -140,7 +140,7 @@ Based on our framework evaluation, the system must support:
 
 Given that our team's primary coding stack is **TypeScript**, we should consider framework options in both Python and TypeScript:
 
-- **CrewAI (Python)** remains the leading candidate due to its excellent balance of simplicity, local execution, and extensibility
+- **AGNO (Python)** remains the leading candidate due to its excellent balance of simplicity, local execution, and extensibility
 - **TypeScript alternatives** should be evaluated if they offer similar characteristics:
   - Local execution capabilities
   - Simple agent definition patterns
@@ -151,9 +151,9 @@ Given that our team's primary coding stack is **TypeScript**, we should consider
 - **Team familiarity**: TypeScript expertise could accelerate development and adoption
 - **Ecosystem**: Consider available tool integrations and LLM libraries in each language
 
-## **Why CrewAI Fits**
+## **Why AGNO Fits**
 
-CrewAI meets our requirements because it:
+AGNO meets our requirements because it:
 
 - **Runs locally** with minimal dependencies
 - **Simple agent definition** using Python classes
@@ -166,7 +166,7 @@ CrewAI meets our requirements because it:
 
 **Phase 1: Core Framework (4 weeks)**
 
-- Set up CrewAI-based local agent system
+- Set up AGNO-based local agent system
 - Create container distribution mechanism
 - Implement basic GitHub/Jira integration
 - Build simple CLI interface
@@ -196,7 +196,7 @@ CrewAI meets our requirements because it:
 
 ## **Next Steps**
 
-1. Prototype basic RHDH Sidekick using CrewAI
+1. Prototype basic RHDH Sidekick using AGNO
 2. Build one concrete agent (standup prep) as proof of concept
 3. Test with small group of volunteers
 4. Refine based on feedback and expand to full team
