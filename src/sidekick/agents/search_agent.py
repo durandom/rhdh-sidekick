@@ -13,6 +13,7 @@ from typing import Any
 from agno.agent import Agent, RunResponse, RunResponseEvent
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
+from agno.tools.file import FileTools
 from agno.tools.knowledge import KnowledgeTools
 from agno.tools.reasoning import ReasoningTools
 from loguru import logger
@@ -28,6 +29,7 @@ class SearchAgent(BaseAgentFactory):
         self,
         knowledge_path: Path | None = None,
         storage_path: Path | None = None,
+        workspace_dir: Path | None = None,
         user_id: str | None = None,
         memory: Any = None,
     ):
@@ -37,12 +39,15 @@ class SearchAgent(BaseAgentFactory):
         Args:
             knowledge_path: Path to knowledge documents directory
             storage_path: Path for agent session storage
+            workspace_dir: Path to workspace directory for file operations
             user_id: Optional user ID for session management
             memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
             storage_path = self.get_default_storage_path("search")
+
+        self.workspace_dir = workspace_dir or Path("./workspace")
 
         super().__init__(storage_path=storage_path, memory=memory)
 
@@ -146,12 +151,15 @@ class SearchAgent(BaseAgentFactory):
             add_few_shot=True,
         )
 
+        # Create file tools for workspace operations
+        file_tools = FileTools(base_dir=self.workspace_dir)
+
         # Create the agent
         agent = Agent(
             name="RHDH Search Assistant",
             model=Gemini(id="gemini-2.5-flash"),
             instructions=self.get_agent_instructions(),
-            tools=[knowledge_tools, ReasoningTools(add_instructions=True)],
+            tools=[knowledge_tools, ReasoningTools(add_instructions=True), file_tools],
             storage=storage,
             memory=self.memory,
             enable_agentic_memory=bool(self.memory),

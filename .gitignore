@@ -278,6 +278,7 @@ performance_artifacts/
 
 # Downloaded files
 downloads/
+workspace/
 
 # Google OAuth credentials - NEVER commit these!
 .client_secret.googleusercontent.com.json
@@ -285,4 +286,3 @@ tmp/token_drive.json
 
 # tmp files
 tmp/
-

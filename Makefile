@@ -9,7 +9,7 @@ prepare-commit:
 	@echo "🚀 Preparing commit..."
 	git add .
 	@echo "🔍 Running pre-commit hooks..."
-	pre-commit run --all-files
+	pre-commit run
 
 # Development commands
 lint:

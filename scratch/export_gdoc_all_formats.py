@@ -216,7 +216,7 @@ def main():
         print("The Document ID is: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
         sys.exit(1)
 
-    arg = sys.argv[1].strip().lower()
+    arg = sys.argv[1].strip()
 
     # Authenticate and build service
     creds = authenticate()
@@ -224,12 +224,14 @@ def main():
 
     documents_to_process = []
 
-    if arg == "test":
+    # Check for test commands (case insensitive)
+    arg_lower = arg.lower()
+    if arg_lower == "test":
         # Export all test documents
         documents_to_process = [(doc["id"], doc["type"]) for doc in TEST_DOCUMENTS.values()]
-    elif arg in TEST_DOCUMENTS:
+    elif arg_lower in TEST_DOCUMENTS:
         # Export specific test document
-        doc = TEST_DOCUMENTS[arg]
+        doc = TEST_DOCUMENTS[arg_lower]
         documents_to_process = [(doc["id"], doc["type"])]
     else:
         # Assume it's a document ID - try to detect type from file metadata
