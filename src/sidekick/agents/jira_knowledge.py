@@ -7,20 +7,21 @@ for use in retrieval-augmented generation (RAG) workflows, such as with JiraTria
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agno.embedder.google import GeminiEmbedder
-from agno.vectordb.lancedb import LanceDb, SearchType
 from agno.knowledge.json import JSONKnowledgeBase
+from agno.vectordb.lancedb import LanceDb, SearchType
 from loguru import logger
+
 
 class JiraKnowledgeManager:
     """Manages Jira issues for RAG-based triage and retrieval."""
 
     def __init__(
         self,
-        data_path: Optional[Path] = None,
-        vector_db_path: Optional[Path] = None,
+        data_path: Path | None = None,
+        vector_db_path: Path | None = None,
         table_name: str = "jira_issues",
     ):
         """
@@ -39,11 +40,14 @@ class JiraKnowledgeManager:
         self.data_path = data_path
         self.vector_db_path = vector_db_path
         self.table_name = table_name
-        self._issues: List[Dict[str, Any]] = []
-        self._vector_db: Optional[LanceDb] = None
-        self._knowledge: Optional[JSONKnowledgeBase] = None
+        self._issues: list[dict[str, Any]] = []
+        self._vector_db: LanceDb | None = None
+        self._knowledge: JSONKnowledgeBase | None = None
         self._loaded = False
-        logger.debug(f"JiraKnowledgeManager initialized: data_path={data_path}, vector_db_path={vector_db_path}, table_name={table_name}")
+        logger.debug(
+            f"JiraKnowledgeManager initialized: data_path={data_path}, "
+            f"vector_db_path={vector_db_path}, table_name={table_name}"
+        )
 
     def load_issues(self, recreate: bool = False) -> None:
         """
@@ -56,7 +60,7 @@ class JiraKnowledgeManager:
             logger.debug("Jira issues already loaded and indexed.")
             return
         logger.info(f"Loading Jira issues from {self.data_path}")
-        with open(self.data_path, "r") as f:
+        with open(self.data_path) as f:
             self._issues = json.load(f)
         logger.info(f"Loaded {len(self._issues)} Jira issues.")
         # Index issues for semantic search
