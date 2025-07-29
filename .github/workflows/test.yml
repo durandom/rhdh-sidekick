@@ -35,31 +35,9 @@ jobs:
       run: |
         uv sync --group dev
 
-    - name: Lint with ruff
-      run: |
-        uv run ruff check .
-        uv run ruff format --check .
-
-    - name: Type check with mypy
-      run: |
-        uv run mypy src/ tests/ --ignore-missing-imports
+    - name: Lint with pre-commit
+      uses: pre-commit/action@v3.0.1
 
     - name: Test with pytest
       run: |
-        uv run pytest --cov=src --cov-report=xml --cov-report=term-missing
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
-      if: matrix.python-version == '3.12'
-    - name: Upload performance artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: performance-artifacts-${{ matrix.python-version }}
-        path: |
-          out/performance_results.json
-        retention-days: 30
+        uv run pytest
