@@ -13,6 +13,7 @@ from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from agno.team import Team, TeamRunResponse
+from agno.tools.file import FileTools
 from agno.tools.mcp import MCPTools
 from loguru import logger
 
@@ -20,6 +21,7 @@ from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
 from ..agents.search_agent import SearchAgent
 from ..prompts import get_prompt_registry
+from ..tools.gdrive_toolkit import GoogleDriveTools
 from ..tools.state_management import StateManagementToolkit
 
 
@@ -32,6 +34,7 @@ class TagTeam:
         user_id: str | None = None,
         repository: str | None = None,
         knowledge_path: Path | None = None,
+        workspace_dir: Path | None = None,
         memory: Memory | None = None,
     ):
         """
@@ -42,6 +45,7 @@ class TagTeam:
             user_id: Optional user ID for session management
             repository: Default GitHub repository (format: "owner/repo")
             knowledge_path: Path to knowledge documents directory for SearchAgent
+            workspace_dir: Path to workspace directory for file operations and downloads
             memory: Memory instance for shared memory across all team members
         """
         if storage_path is None:
@@ -51,6 +55,7 @@ class TagTeam:
         self.user_id = user_id
         self.repository = repository
         self.knowledge_path = knowledge_path
+        self.workspace_dir = workspace_dir or Path("./workspace")
         self.memory = memory
         self._team: Team | None = None
         self._initialized = False
@@ -58,10 +63,12 @@ class TagTeam:
         self._jira_mcp_tools: MCPTools | None = None
         self._github_tools: Any | None = None
         self._search_agent: SearchAgent | None = None
+        self._gdrive_tools: GoogleDriveTools | None = None
+        self._file_tools: FileTools | None = None
 
         logger.debug(
             f"TagTeam initialized: storage_path={storage_path}, user_id={user_id}, "
-            f"repository={repository}, knowledge_path={knowledge_path}"
+            f"repository={repository}, knowledge_path={knowledge_path}, workspace_dir={self.workspace_dir}"
         )
 
     def _generate_session_id(self) -> str:
@@ -140,17 +147,28 @@ class TagTeam:
         logger.info("Setting up MCP context for tag team")
 
         # Create Jira MCP tools
-        jira_agent_factory = JiraAgent(memory=self.memory)
+        jira_agent_factory = JiraAgent(workspace_dir=self.workspace_dir, memory=self.memory)
         self._jira_mcp_tools = jira_agent_factory.create_mcp_tools()
 
         # Create GitHub tools
-        github_agent_factory = GitHubAgent(repository=self.repository, memory=self.memory)
+        github_agent_factory = GitHubAgent(
+            repository=self.repository, workspace_dir=self.workspace_dir, memory=self.memory
+        )
         self._github_tools = github_agent_factory.create_github_tools()
 
         # Create SearchAgent (no MCP context needed)
         self._search_agent = SearchAgent(
-            knowledge_path=self.knowledge_path, storage_path=self.storage_path, memory=self.memory
+            knowledge_path=self.knowledge_path,
+            storage_path=self.storage_path,
+            workspace_dir=self.workspace_dir,
+            memory=self.memory,
         )
+
+        # Create Google Drive tools
+        self._gdrive_tools = GoogleDriveTools(workspace_dir=self.workspace_dir)
+
+        # Create File tools for team coordinator
+        self._file_tools = FileTools(base_dir=self.workspace_dir)
 
         # Start MCP context
         if self._jira_mcp_tools is not None:
@@ -176,7 +194,13 @@ class TagTeam:
             logger.debug("Team already initialized")
             return
 
-        if self._jira_mcp_tools is None or self._github_tools is None or self._search_agent is None:
+        if (
+            self._jira_mcp_tools is None
+            or self._github_tools is None
+            or self._search_agent is None
+            or self._gdrive_tools is None
+            or self._file_tools is None
+        ):
             raise RuntimeError("MCP context not set up. Use TagTeam as async context manager.")
 
         try:
@@ -196,7 +220,7 @@ class TagTeam:
             )
 
             # Create Jira agent using the factory pattern with MCP tools from context
-            jira_agent_factory = JiraAgent(memory=self.memory)
+            jira_agent_factory = JiraAgent(workspace_dir=self.workspace_dir, memory=self.memory)
             jira_agent = jira_agent_factory.create_agent(self._jira_mcp_tools)
 
             # Update Jira agent for team coordination and add shared memory
@@ -214,7 +238,9 @@ class TagTeam:
             jira_agent.instructions = original_instructions + team_instructions
 
             # Create GitHub agent using the factory pattern with tools from context
-            github_agent_factory = GitHubAgent(repository=self.repository, memory=self.memory)
+            github_agent_factory = GitHubAgent(
+                repository=self.repository, workspace_dir=self.workspace_dir, memory=self.memory
+            )
             github_agent = github_agent_factory.create_agent(self._github_tools)
 
             # Update GitHub agent for team coordination and add shared memory
@@ -280,10 +306,11 @@ class TagTeam:
                 members=[jira_agent, github_agent, search_agent],
                 description=(
                     "A specialized team for coordinating Jira ticket management, "
-                    "GitHub repository operations, and knowledge base searches"
+                    "GitHub repository operations, knowledge base searches, "
+                    "Google Drive document management, and workspace file operations"
                 ),
                 instructions=self.get_team_instructions(),
-                tools=[state_toolkit],
+                tools=[state_toolkit, self._gdrive_tools, self._file_tools],
                 team_session_state=team_session_state,  # Shared state for all team members
                 session_state=team_private_state,  # Team leader's private state
                 storage=storage,

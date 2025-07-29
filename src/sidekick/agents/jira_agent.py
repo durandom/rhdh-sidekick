@@ -13,6 +13,7 @@ from agno.agent import Agent
 from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
+from agno.tools.file import FileTools
 from agno.tools.mcp import MCPTools
 from loguru import logger
 
@@ -25,6 +26,7 @@ class JiraAgent(BaseAgentFactory):
     def __init__(
         self,
         storage_path: Path | None = None,
+        workspace_dir: Path | None = None,
         memory: Memory | None = None,
     ):
         """
@@ -32,15 +34,18 @@ class JiraAgent(BaseAgentFactory):
 
         Args:
             storage_path: Path for agent session storage
+            workspace_dir: Path to workspace directory for file operations
             memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
             storage_path = self.get_default_storage_path("jira")
 
+        self.workspace_dir = workspace_dir or Path("./workspace")
+
         super().__init__(storage_path=storage_path, memory=memory)
 
-        logger.debug(f"JiraAgent factory initialized: storage_path={storage_path}")
+        logger.debug(f"JiraAgent factory initialized: storage_path={storage_path}, workspace_dir={self.workspace_dir}")
 
     def build_mcp_command(self) -> tuple[str, dict[str, str], list[str]]:
         """Build the MCP command configuration for the Atlassian server.
@@ -150,12 +155,15 @@ class JiraAgent(BaseAgentFactory):
         # Get instructions
         instructions = self.get_agent_instructions()
 
+        # Create file tools for workspace operations
+        file_tools = FileTools(base_dir=self.workspace_dir)
+
         # Create the agent
         agent = Agent(
             name="Jira Assistant",
             model=Gemini(id="gemini-2.5-flash"),
             instructions=instructions,
-            tools=[mcp_tools],
+            tools=[mcp_tools, file_tools],
             storage=storage,
             memory=self.memory,
             enable_agentic_memory=bool(self.memory),
