@@ -23,11 +23,11 @@ from rich.console import Console
 from .. import __version__
 from ..settings import LoggingConfig, settings
 from .chat import chat_app
+from .jira_triager import jira_triager_app
 from .knowledge import knowledge_app
 from .prompts import prompts_app
 from .release_notes import release_notes_app
 from .test_analysis import test_analysis_app
-from .jira_triager import jira_triager_app
 
 load_dotenv(verbose=True)  # take environment variables
 
@@ -53,7 +53,7 @@ def setup_langfuse() -> None:
 
         langfuse_auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
 
-        os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = host
+        os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = host + "/api/public/otel"
         os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
 
         # Configure the tracer provider

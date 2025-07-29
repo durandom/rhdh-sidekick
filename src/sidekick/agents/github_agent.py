@@ -13,6 +13,7 @@ from agno.agent import Agent
 from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
+from agno.tools.file import FileTools
 from agno.tools.github import GithubTools
 from loguru import logger
 
@@ -26,6 +27,7 @@ class GitHubAgent(BaseAgentFactory):
         self,
         storage_path: Path | None = None,
         repository: str | None = None,
+        workspace_dir: Path | None = None,
         memory: Memory | None = None,
     ):
         """
@@ -34,16 +36,22 @@ class GitHubAgent(BaseAgentFactory):
         Args:
             storage_path: Path for agent session storage
             repository: Default repository to work with (format: "owner/repo")
+            workspace_dir: Path to workspace directory for file operations
             memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
             storage_path = self.get_default_storage_path("github")
 
+        self.workspace_dir = workspace_dir or Path("./workspace")
+
         super().__init__(storage_path=storage_path, memory=memory, repository=repository)
         self.repository = repository
 
-        logger.debug(f"GitHubAgent factory initialized: storage_path={storage_path}, repository={repository}")
+        logger.debug(
+            f"GitHubAgent factory initialized: storage_path={storage_path}, "
+            f"repository={repository}, workspace_dir={self.workspace_dir}"
+        )
 
     def create_github_tools(self) -> GithubTools:
         """Create and return configured GitHub tools.
@@ -142,12 +150,15 @@ class GitHubAgent(BaseAgentFactory):
         # Get instructions
         instructions = self.get_agent_instructions()
 
+        # Create file tools for workspace operations
+        file_tools = FileTools(base_dir=self.workspace_dir)
+
         # Create the agent
         agent = Agent(
             name="GitHub Assistant",
             model=Gemini(id="gemini-2.5-flash"),
             instructions=instructions,
-            tools=[github_tools],
+            tools=[github_tools, file_tools],
             storage=storage,
             memory=self.memory,
             enable_agentic_memory=bool(self.memory),
