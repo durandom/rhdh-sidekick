@@ -3,9 +3,11 @@ Jira client utility functions for the sidekick CLI application.
 """
 
 from loguru import logger
+
 from sidekick.tools.jira import _get_jira_client
 
 DEFAULT_NUM_ISSUES = 50
+
 
 def get_project_component_names(project_key: str) -> list[str]:
     """
@@ -21,7 +23,7 @@ def get_project_component_names(project_key: str) -> list[str]:
         return [comp.name for comp in components]
     except Exception as e:
         logger.error(f"Failed to fetch components for project {project_key}: {e}")
-        return [] 
+        return []
 
 
 def get_jira_triager_fields(issue_id: str) -> dict:
@@ -38,12 +40,16 @@ def get_jira_triager_fields(issue_id: str) -> dict:
     try:
         issue = jira.issue(issue_id, expand="renderedFields,changelog,comments")
     except Exception as e:
-        raise ValueError(f"Could not fetch Jira issue {issue_id}: {e}")
+        raise ValueError(f"Could not fetch Jira issue {issue_id}: {e}") from e
 
     # Extract fields directly
     title = getattr(issue.fields, "summary", "")
     description = getattr(issue.fields, "description", "")
-    components = [comp.name for comp in getattr(issue.fields, "components", [])] if getattr(issue.fields, "components", None) else []
+    components = (
+        [comp.name for comp in getattr(issue.fields, "components", [])]
+        if getattr(issue.fields, "components", None)
+        else []
+    )
     assignee = issue.fields.assignee.displayName if getattr(issue.fields, "assignee", None) else None
     team = getattr(issue.fields, "customfield_12313240", None)
     project_key = getattr(getattr(issue.fields, "project", None), "key", None)
@@ -66,11 +72,9 @@ def clean_jira_description(text):
     cleaned = cleaned.strip()
     return cleaned
 
+
 def fetch_and_transform_issues(
-    project_key: str,
-    jql_extra: str = "",
-    num_issues: int = DEFAULT_NUM_ISSUES,
-    output_file: str = "examples.json"
+    project_key: str, jql_extra: str = "", num_issues: int = DEFAULT_NUM_ISSUES, output_file: str = "examples.json"
 ):
     """
     Fetch and transform Jira issues for a given project and optional extra JQL filters.
@@ -81,21 +85,19 @@ def fetch_and_transform_issues(
         output_file: File to write the transformed data to
     """
     import json
+
     jira = _get_jira_client()
     start_at = 0
-    transformed_data = []
+    transformed_data: list[dict[str, str]] = []
     jql = f'project = "{project_key}" {jql_extra}'.strip()
     total = None
-    batch_size = 50 # Default batch size for Jira API calls
+    batch_size = 50  # Default batch size for Jira API calls
 
     while (total is None or start_at < total) and len(transformed_data) < num_issues:
         remaining = num_issues - len(transformed_data)
         this_batch = min(batch_size, remaining)
         issues = jira.search_issues(
-            jql,
-            startAt=start_at,
-            maxResults=this_batch,
-            fields="summary,components,customfield_12313240,description"
+            jql, startAt=start_at, maxResults=this_batch, fields="summary,components,customfield_12313240,description"
         )
         if total is None:
             total = issues.total
@@ -106,7 +108,7 @@ def fetch_and_transform_issues(
             components = getattr(fields, "components", [])
             component = components[0].name if components else ""
             team_field = getattr(fields, "customfield_12313240", None)
-            if hasattr(team_field, "name"):
+            if team_field is not None and hasattr(team_field, "name"):
                 team = team_field.name
             elif isinstance(team_field, dict) and "name" in team_field:
                 team = team_field["name"]
@@ -116,13 +118,9 @@ def fetch_and_transform_issues(
                 team = ""
             description = clean_jira_description(getattr(fields, "description", ""))
             key = issue.key
-            transformed_data.append({
-                "title": title,
-                "key": key,
-                "component": component,
-                "description": description,
-                "team": team
-            })
+            transformed_data.append(
+                {"title": title, "key": key, "component": component, "description": description, "team": team}
+            )
             if len(transformed_data) >= num_issues:
                 break
 
