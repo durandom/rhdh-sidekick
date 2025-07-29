@@ -5,17 +5,19 @@ This module implements an AI agent that analyzes previous support tickets and a 
 and recommends the best-matching team and component for assignment.
 """
 
+import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
-import re
+from typing import Any
 
 from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from loguru import logger
-from .jira_knowledge import JiraKnowledgeManager
+
 from sidekick.utils.jira_client_utils import clean_jira_description, get_project_component_names
+
+from .jira_knowledge import JiraKnowledgeManager
 
 ALLOWED_TEAMS = [
     "**REMOVED**",
@@ -40,48 +42,54 @@ ALLOWED_TEAMS = [
 
 COMPONENT_TEAM_MAP = {
     "**REMOVED**": [
-        "3scale", "Actions", "Azure Container Registry plugin", "Bulk Import Plugin", "Matomo Analytics Provider Plugin",
-        "Notifications plugin", "ocm", "Open Cluster Management plugin", "Platform plugins & Backend Plugins", "Plugins",
-        "Quay Actions", "RBAC Plugin", "regex-actions", "Software Templates", "TechDocs", "Web Terminal plugin"
+        "3scale",
+        "Actions",
+        "Azure Container Registry plugin",
+        "Bulk Import Plugin",
+        "Matomo Analytics Provider Plugin",
+        "Notifications plugin",
+        "ocm",
+        "Open Cluster Management plugin",
+        "Platform plugins & Backend Plugins",
+        "Plugins",
+        "Quay Actions",
+        "RBAC Plugin",
+        "regex-actions",
+        "Software Templates",
+        "TechDocs",
+        "Web Terminal plugin",
     ],
     "**REMOVED**": [
-        "Bulk Import Plugin", "Frontend Plugins & UI", "Localization", "ocm", "Quickstart Plugin", "RBAC Plugin",
-        "Theme", "Topology plugin", "UI"
+        "Bulk Import Plugin",
+        "Frontend Plugins & UI",
+        "Localization",
+        "ocm",
+        "Quickstart Plugin",
+        "RBAC Plugin",
+        "Theme",
+        "Topology plugin",
+        "UI",
     ],
+    "**REMOVED**": ["Audit Log", "Build", "Catalog", "Core platform", "Event Module", "jfrog Artifactory", "Upstream"],
+    "**REMOVED**": ["Authentication", "FIPs", "Keycloak provider", "Security"],
     "**REMOVED**": [
-        "Audit Log", "Build", "Catalog", "Core platform", "Event Module", "jfrog Artifactory", "Upstream"
+        "database",
+        "Helm Chart",
+        "Installation & Run",
+        "Operator",
+        "Orchestrator plugin",
+        "RHDH Local",
     ],
-    "**REMOVED**": [
-        "Authentication", "FIPs", "Keycloak provider", "Security"
-    ],
-    "**REMOVED**": [
-        "database", "Helm Chart", "Installation & Run", "Operator", "Orchestrator plugin", "RHDH Local"
-    ],
-    "**REMOVED**": [
-        "Developer Hub UX"
-    ],
-    "**REMOVED**": [
-        "Documentation"
-    ],
-    "**REMOVED**": [
-        "Dynamic plugins", "Marketplace"
-    ],
-    "**REMOVED**": [
-        "ArgoCD Plugin", "Quay Plugin", "Tekton plugin"
-    ],
-    "**REMOVED**": [
-        "Performance"
-    ],
-    "**REMOVED**": [
-        "AI", "lightspeed"
-    ],
-    "**REMOVED**": [
-        "AI"
-    ],
-    "**REMOVED**": [
-        "AI"
-    ],
+    "**REMOVED**": ["Developer Hub UX"],
+    "**REMOVED**": ["Documentation"],
+    "**REMOVED**": ["Dynamic plugins", "Marketplace"],
+    "**REMOVED**": ["ArgoCD Plugin", "Quay Plugin", "Tekton plugin"],
+    "**REMOVED**": ["Performance"],
+    "**REMOVED**": ["AI", "lightspeed"],
+    "**REMOVED**": ["AI"],
+    "**REMOVED**": ["AI"],
 }
+
 
 class JiraTriagerAgent:
     """
@@ -90,14 +98,15 @@ class JiraTriagerAgent:
     Uses RAG to find relevant historical tickets and passes them to the LLM.
     Only assigns missing fields, using existing assigned fields as context.
 
-    CLI integration: If a Jira issue ID is provided, the CLI will fetch the issue fields automatically using get_jira_issue_fields.
+    CLI integration: If a Jira issue ID is provided, the CLI will fetch the issue fields
+    automatically using get_jira_issue_fields.
     """
 
     def __init__(
         self,
         jira_knowledge_manager: JiraKnowledgeManager,
-        storage_path: Optional[Path] = None,
-        user_id: Optional[str] = None,
+        storage_path: Path | None = None,
+        user_id: str | None = None,
     ):
         """
         Initialize the Jira triager agent.
@@ -112,9 +121,9 @@ class JiraTriagerAgent:
 
         self.storage_path = storage_path
         self.user_id = user_id
-        self._agent: Optional[Agent] = None
+        self._agent: Agent | None = None
         self._initialized = False
-        self._session_id: Optional[str] = None
+        self._session_id: str | None = None
         self.jira_knowledge_manager = jira_knowledge_manager
         self.jira_knowledge_manager.load_issues(recreate=False)
         logger.debug(f"JiraTriagerAgent initialized: storage_path={storage_path}, user_id={user_id}")
@@ -123,7 +132,7 @@ class JiraTriagerAgent:
         """Generate a new session ID using UUID."""
         return str(uuid.uuid4())
 
-    def create_session(self, user_id: Optional[str] = None) -> str:
+    def create_session(self, user_id: str | None = None) -> str:
         """
         Create a new session for the agent.
 
@@ -139,7 +148,7 @@ class JiraTriagerAgent:
         logger.debug(f"Created new session: session_id={self._session_id}, user_id={self.user_id}")
         return self._session_id
 
-    def get_current_session(self) -> Optional[str]:
+    def get_current_session(self) -> str | None:
         """
         Get the current session ID.
 
@@ -167,26 +176,28 @@ class JiraTriagerAgent:
             for team, components in COMPONENT_TEAM_MAP.items():
                 comps_str = ", ".join(sorted(components))
                 team_component_lines.append(f"- {team}: {comps_str}")
-            team_component_map_str = (
-                "Team-to-Components Associations (not absolute, use as reference):\n"
-                + "\n".join(team_component_lines)
+            team_component_map_str = "Team-to-Components Associations (not absolute, use as reference):\n" + "\n".join(
+                team_component_lines
             )
             self._agent = Agent(
                 name="Jira Triager Agent",
                 model=Gemini(id="gemini-2.0-flash"),
                 instructions=[
                     "You are an expert Jira ticket triager.",
-                    "Your job is to recommend the best team and component for a new Jira issue, based on previous support tickets.",
+                    "Your job is to recommend the best team and component for a new Jira issue, "
+                    "based on previous support tickets.",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
-                    "You will be given a list of previous tickets (with title, description, component, team) and the current ticket (title, description, component, team, assignee).",
+                    "You will be given a list of previous tickets (with title, description, component, team) "
+                    "and the current ticket (title, description, component, team, assignee).",
                     "You will be provided with the allowed components for the current ticket in the prompt.",
                     team_component_map_str,
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
-                    "If the current ticket already has a component, team, or assignee, consider them when determining the best match.",
+                    "If the current ticket already has a component, team, or assignee, "
+                    "consider them when determining the best match.",
                     "Output ONLY a JSON object with keys 'team' and 'component'.",
                     "Do NOT include any explanation, markdown, or text outside the JSON.",
-                    "Example: {\"team\": \"<team>\", \"component\": \"<component>\"}",
+                    'Example: {"team": "<team>", "component": "<component>"}',
                 ],
                 tools=[],
                 storage=storage,
@@ -201,9 +212,9 @@ class JiraTriagerAgent:
 
     def triage_ticket(
         self,
-        current_ticket: Dict[str, Any],
-        session_id: Optional[str] = None,
-    ) -> Dict[str, str]:
+        current_ticket: dict[str, Any],
+        session_id: str | None = None,
+    ) -> dict[str, str]:
         """
         Recommend the missing team or component for a Jira ticket using RAG.
 
@@ -226,7 +237,8 @@ class JiraTriagerAgent:
 
         # Determine which fields are missing (treat None and '' as missing)
         missing_fields = [
-            field for field in ("team", "component")
+            field
+            for field in ("team", "component")
             if current_ticket.get(field) is None or current_ticket.get(field) == ""
         ]
 
@@ -248,20 +260,25 @@ class JiraTriagerAgent:
         if assignee:
             prompt_lines.append(self._get_assignee_team_info(assignee))
 
-        prompt_lines.extend([
-            "Given the current Jira ticket:",
-            f"Title: {current_ticket.get('title', '')}",
-            f"Description: {clean_jira_description(current_ticket.get('description', ''))}",
-            f"The current ticket is missing the following field(s): {missing_fields}.",
-            "Use any assigned field(s) (component, team, assignee) as context to help determine the best match for the missing field(s).",
-            "Recommend ONLY the missing field(s) as a JSON object (e.g., {\"team\": ...} or {\"component\": ...} or both).",
-            "Do not include fields that are already assigned."
-        ])
+        prompt_lines.extend(
+            [
+                "Given the current Jira ticket:",
+                f"Title: {current_ticket.get('title', '')}",
+                f"Description: {clean_jira_description(current_ticket.get('description', ''))}",
+                f"The current ticket is missing the following field(s): {missing_fields}.",
+                "Use any assigned field(s) (component, team, assignee) as context to help "
+                "determine the best match for the missing field(s).",
+                "Recommend ONLY the missing field(s) as a JSON object "
+                '(e.g., {"team": ...} or {"component": ...} or both).'
+                "Do not include fields that are already assigned.",
+            ]
+        )
         prompt = "\n".join(prompt_lines)
         response = self._agent.run(prompt, stream=False, session_id=self._session_id, user_id=self.user_id)
         # Parse the response for the JSON object
         import json
-        content = response.content if response.content is not None else '{}'
+
+        content = response.content if response.content is not None else "{}"
         # Remove Markdown code block markers if present
         clean_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE | re.MULTILINE)
         try:
@@ -275,37 +292,67 @@ class JiraTriagerAgent:
     def _get_assignee_team_info(self, assignee: str) -> str:
         TEAM_ASSIGNEE_MAP = {
             "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
             ],
             "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+            ],
+            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"],
+            "**REMOVED**": [
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
             ],
             "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
             ],
             "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
             ],
-            "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
-            ],
-            "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
-            ],
-            "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**"
-            ],
+            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**"],
             "**REMOVED**": ["**REMOVED**"],
             "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
+                "**REMOVED**",
             ],
-            "**REMOVED**": [
-                "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"
-            ],
+            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"],
         }
         if not assignee:
             return ""
         for team, members in TEAM_ASSIGNEE_MAP.items():
             if any(assignee.strip() == m.strip() for m in members):
-                return f"The current assignee ('{assignee}') is a member of the team '{team}'. Assign the ticket to this team."
+                return (
+                    f"The current assignee ('{assignee}') is a member of the team '{team}'. "
+                    "Assign the ticket to this team."
+                )
         return ""
