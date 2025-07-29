@@ -601,6 +601,68 @@ instructions = get_agent_instructions_from_template(
 )
 ```
 
+## ⚖️ Jira Triager
+
+This tool uses a Retrieval-Augmented Generation (RAG) workflow: it leverages a local knowledge base of historical Jira issues and a LLM to recommend the best team and component for new Jira tickets. The agent performs semantic search over past issues to provide context-aware, data-driven triage recommendations.
+
+### 1. Extract Jira Data for RAG-Powered Triage
+
+Before you can triage Jira issues, you must first build the local knowledge base by extracting historical Jira issues. This is done with the `load-jira-knowledge` command:
+
+**Usage:**
+
+```
+uv run sidekick jira-triager load-jira-knowledge [OPTIONS]
+```
+
+**Options:**
+- `--projects TEXT`  Comma-separated list of Jira project keys (default: `RHDHSUPP,RHIDP,RHDHBUGS`)
+- `--jql-extra TEXT` Extra JQL filter to further restrict issues (e.g., `AND status = "Closed"`)
+- `--num-issues INTEGER` Number of issues to return per project (default: 50)
+
+**Behavior:**
+- Always applies built-in filters: only issues with `resolution = "Done"`, `resolutiondate >= -360d`, `Team` and `component` present.
+- Combines issues from all specified projects into a single file: `tmp/jira_knowledge_base.json`
+
+> **Note:** You must run this command at least once before using the triage command. Re-run it whenever you want to refresh the knowledge base with new Jira data.
+
+---
+
+### 2. Triage Jira Issues Using the RAG Agent
+
+Once the knowledge base is built, you can triage Jira issues using the following command. The agent will use semantic search and LLM reasoning to recommend assignments:
+
+```bash
+# Triage a Jira issue by ticket ID (fields auto-fetched)
+uv run sidekick jira-triager triage RHIDP-6496
+
+# Triage a Jira issue by manually specifying fields
+uv run sidekick jira-triager triage --title "Password reset fails" --description "Reset link returns 500 error."
+
+# Override specific fields when using a ticket ID
+uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --team ""
+```
+
+- The command will recommend the best team and component for the given Jira issue.
+- If you provide a Jira issue ID, the tool will automatically fetch the title, description, components, team, and assignee from Jira.
+
+#### How It Works
+
+1. **Fetches Jira issue details** using the provided ticket ID.
+2. **Retrieves historical Jira tickets** from the local knowledge base for context using semantic search.
+3. **Uses a large language model (LLM) with RAG** to analyze the current issue in the context of past tickets, considering any existing assignments.
+4. **Recommends the most appropriate team and component** for the issue, filling in only missing fields and respecting any already-assigned values.
+5. **Outputs the recommended assignment** directly in the CLI.
+
+---
+
+### Future Improvements
+- Better Jira integration: 
+  - Pull Jira issues with missing team/components automatically
+  - Implement command to apply changes to the Jira ticket automatically
+- Consider assigning multiple related components
+- Consider: For ArgoCD (not Roadie), Tekton and Quay plugins RHDHBugs should go to RHTAPBugs and engage the RHTAP UI team.
+
 ## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) file for details.
