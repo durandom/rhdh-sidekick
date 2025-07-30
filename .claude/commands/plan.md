@@ -1,6 +1,6 @@
-# Generic Planning Command for B4RT
+# Generic Planning Command
 
-This command handles creating comprehensive plans for any development task in the B4RT telemetry analysis system.
+This command handles creating comprehensive plans for any development task in this project.
 
 ## Usage
 
@@ -9,6 +9,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 ## The 5-Step Planning Process
 
 ### Step 1: Requirements Gathering
+
 - **Understand the task:** What exactly needs to be accomplished?
 - **Gather context:** What existing systems/files are involved?
 - **Identify constraints:** What limitations or requirements exist?
@@ -16,6 +17,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 - **Clarify scope:** What is in-scope vs out-of-scope?
 
 ### Step 2: Create Planning Document
+
 - **Create plan document** in `docs/plans/<task_name>.md`
 - **Document requirements** gathered in Step 1
 - **Analyze current state** of relevant systems
@@ -23,6 +25,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 - **Draft initial approach** and architecture decisions
 
 ### Step 3: Refine Planning Document
+
 - **Present the plan** to the user for review
 - **Gather feedback** and make adjustments
 - **Ensure all requirements** are captured accurately
@@ -30,6 +33,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 - **Get explicit approval** before proceeding to implementation
 
 ### Step 4: Execute Implementation
+
 - **Follow the planned approach** step by step
 - **Track progress** using TodoWrite tool for complex tasks
 - **Document decisions** made during implementation
@@ -37,6 +41,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 - **Maintain communication** with user throughout
 
 ### Step 5: Implementation Report
+
 - **Update the planning document** with implementation details
 - **Document what was actually built** vs what was planned
 - **Record key decisions** and rationale
@@ -49,6 +54,7 @@ When this command is invoked, it will guide you through a structured 5-step plan
 When this command is invoked:
 
 1. **Ask the user to describe their task:**
+
    ```
    What would you like to plan and implement?
 
@@ -88,24 +94,28 @@ When this command is invoked:
 ## Best Practices
 
 ### For Requirements Gathering
+
 - Ask open-ended questions to understand the "why" behind requests
 - Explore edge cases and error conditions
 - Consider integration with existing systems
 - Validate assumptions with the user
 
 ### For Planning Documents
+
 - Be specific and actionable in plans
 - Include concrete examples where helpful
 - Consider both happy path and error scenarios
 - Make plans reviewable and updateable
 
 ### For Implementation
+
 - Follow the plan but be flexible when needed
 - Document deviations and reasons
 - Communicate regularly with the user
 - Test incrementally as you build
 
 ### For Documentation
+
 - Keep the planning document updated throughout
 - Include both successes and failures
 - Make it useful for future similar tasks
@@ -114,24 +124,28 @@ When this command is invoked:
 ## Example Usage Scenarios
 
 ### New Feature Development
+
 - Planning new detectors or event types
 - Adding new visualization capabilities
 - Implementing new CLI commands
 - Extending the streaming architecture
 
 ### Bug Fixes and Improvements
+
 - Addressing performance issues
 - Fixing data processing problems
 - Improving error handling
 - Enhancing user experience
 
 ### Refactoring Tasks
+
 - Restructuring code organization
 - Updating dependencies
 - Improving test coverage
 - Enhancing documentation
 
 ### Architecture Changes
+
 - Modifying core data structures
 - Changing processing pipelines
 - Updating configuration systems
