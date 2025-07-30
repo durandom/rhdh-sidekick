@@ -14,6 +14,7 @@ from ..agents import SearchAgent
 from ..agents.base import BaseAgentFactory
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
+from ..agents.release_manager import ReleaseManagerAgent
 from ..memory_config import create_memory_instance
 from ..teams.tag_team import TagTeam
 
@@ -264,6 +265,45 @@ def team(
 
 
 @chat_app.command()
+def release(
+    message: str = typer.Argument(
+        None,
+        help="Initial message to send to the Release Manager agent",
+    ),
+) -> None:
+    """
+    Start an interactive chat session with the RHDH Release Manager agent.
+
+    This command initializes a Release Manager agent that helps coordinate
+    release processes, track features, manage test plans, and ensure
+    release readiness for Red Hat Developer Hub.
+
+    Example:
+        sidekick chat release
+        sidekick chat release "What's the status of release 1.6.0?"
+        sidekick chat release "Show me blocker bugs for current release"
+        sidekick chat release "Create test plan for 1.7.0"
+    """
+    logger.debug(f"Chat release called with message={message}")
+
+    async def run_chat():
+        try:
+            streaming_enabled = get_streaming_enabled()
+            user_id = get_user_id()
+            memory = create_memory_instance("release_manager_memory")
+            agent_factory = ReleaseManagerAgent(memory=memory)
+            await run_agent_chat(agent_factory, message, streaming_enabled, user_id)
+        except Exception as e:
+            logger.error(f"Failed to run Release Manager chat: {e}")
+            console.print(f"\n[red]Error:[/red] {e}")
+            console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
+            for env_var in agent_factory.get_required_env_vars():
+                console.print(f"  - {env_var}")
+
+    asyncio.run(run_chat())
+
+
+@chat_app.command()
 def info() -> None:
     """Show information about the chat functionality."""
     console.print("[bold blue]Interactive AI Chat[/bold blue]")
@@ -274,12 +314,14 @@ def info() -> None:
     console.print("  • [cyan]jira[/cyan] - Jira ticket and issue management")
     console.print("  • [cyan]github[/cyan] - GitHub repository and PR management")
     console.print("  • [cyan]team[/cyan] - Coordinated Jira & GitHub operations")
+    console.print("  • [cyan]release[/cyan] - RHDH Release Manager coordination")
 
     console.print("\n[bold]Usage:[/bold]")
     console.print("  sidekick chat search                          # Start search agent")
     console.print("  sidekick chat jira                            # Start Jira agent")
     console.print("  sidekick chat github                          # Start GitHub agent")
     console.print("  sidekick chat team                            # Start Tag Team")
+    console.print("  sidekick chat release                         # Start Release Manager")
     console.print("  sidekick chat github --repo owner/repo        # GitHub with default repo")
     console.print("  sidekick chat team --repo owner/repo          # Tag Team with default repo")
     console.print('  sidekick chat search "your query"            # Agent with initial message')
@@ -294,6 +336,7 @@ def info() -> None:
     console.print("  • JIRA_URL, JIRA_PERSONAL_TOKEN - For Jira agent")
     console.print("  • GITHUB_ACCESS_TOKEN - For GitHub agent")
     console.print("  • Both Jira and GitHub variables - For Tag Team")
+    console.print("  • JIRA_URL, JIRA_PERSONAL_TOKEN - For Release Manager")
 
 
 if __name__ == "__main__":
