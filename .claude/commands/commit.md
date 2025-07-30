@@ -1,15 +1,17 @@
 # Claude Command: Commit
 
-This command helps you create well-formatted commits with conventional commit messages and emoji.
+This command helps you create well-formatted commits with conventional commit messages and emoji. It uses the English language.
 
 ## Usage
 
 To create a commit, just type:
+
 ```
 /commit
 ```
 
 Or to analyze staged changes instead of session summary:
+
 ```
 /commit --staged
 ```
@@ -20,7 +22,7 @@ Or to analyze staged changes instead of session summary:
    - `make prepare-commit` which runs consistent pre-commit hooks for code quality, formatting, and type checking
 2. Checks which files are staged with `git status`
 3. If 0 files are staged, automatically adds all modified and new files with `git add`
-4. Creates a commit message using emoji conventional commit format based on:
+4. Creates a commit message in english language using emoji conventional commit format based on:
    - **Default behavior**: Summarizes the current session's work and changes
    - **With `--staged` flag**: Performs a `git diff` to analyze staged changes and determine if multiple commits are needed
 
@@ -130,6 +132,7 @@ When analyzing the diff, consider splitting commits based on these criteria:
 ## Examples
 
 Good commit messages:
+
 - ✨ feat: add user authentication system
 - 🐛 fix: resolve memory leak in rendering process
 - 📝 docs: update API documentation with new endpoints
@@ -148,6 +151,7 @@ Good commit messages:
 - ♿️ feat: improve form accessibility for screen readers
 
 Example of splitting commits:
+
 - First commit: ✨ feat: add new solc version type definitions
 - Second commit: 📝 docs: update documentation for new solc versions
 - Third commit: 🔧 chore: update package.json dependencies
@@ -166,15 +170,18 @@ Example of splitting commits:
 The project now uses a streamlined approach to avoid back-and-forth fixing:
 
 ### Before Development
+
 - **`make validate-tooling`**: Check if any tools would make changes
 - **`make quality`**: Run all quality checks to catch issues early
 
 ### During Development
+
 - **`make lint`**: Quick linting with auto-fixes
 - **`make format`**: Code formatting
 - **`make typecheck`**: Type checking
 
 ### Before Committing
+
 - **`make prepare-commit`**: Comprehensive pre-commit validation
 - All tools now use consistent configurations (no more conflicting fixes)
 
