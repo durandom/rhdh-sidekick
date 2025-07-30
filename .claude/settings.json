@@ -1,0 +1,11 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(make:*)",
+            "Bash(git add:*)",
+            "Bash(pre-commit:*)"
+        ],
+        "deny": []
+    },
+    "includeCoAuthoredBy": false
+}
