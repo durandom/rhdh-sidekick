@@ -1,5 +1,6 @@
 """Google Drive document exporter utilities."""
 
+import csv
 import io
 import re
 from dataclasses import dataclass
@@ -678,6 +679,84 @@ class GoogleDriveExporter:
             logger.error(f"Failed to extract links from {html_path}: {e}")
             return []
 
+    def export_all_sheets_as_csv(self, spreadsheet_id: str, output_dir: Path, spreadsheet_title: str) -> bool:
+        """Export all sheets from a Google Spreadsheet as separate CSV files.
+
+        Args:
+            spreadsheet_id: Google Spreadsheet ID.
+            output_dir: Directory to save the CSV files.
+            spreadsheet_title: Title of the spreadsheet for directory naming.
+
+        Returns:
+            True if export successful, False otherwise.
+        """
+        try:
+            # Build sheets service if we don't have one
+            if not hasattr(self, "_sheets_service"):
+                creds = self._authenticate()
+                self._sheets_service = build("sheets", "v4", credentials=creds)
+
+            # Get spreadsheet metadata
+            spreadsheet = self._sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+            title = spreadsheet["properties"]["title"]
+            sheets = spreadsheet["sheets"]
+
+            logger.info(f"Exporting all sheets from '{title}' as CSV files:")
+            logger.info(f"Found {len(sheets)} sheet(s)")
+
+            # Create directory with spreadsheet name prefix
+            safe_title = re.sub(r"[^\w\s-]", "_", spreadsheet_title).strip()
+            csv_dir = output_dir / f"{safe_title}_sheets"
+            csv_dir.mkdir(parents=True, exist_ok=True)
+
+            exported_sheets = []
+
+            for sheet in sheets:
+                sheet_name = sheet["properties"]["title"]
+                logger.info(f"Exporting sheet: {sheet_name}")
+
+                # Get sheet data
+                try:
+                    result = (
+                        self._sheets_service.spreadsheets()
+                        .values()
+                        .get(spreadsheetId=spreadsheet_id, range=f"'{sheet_name}'")
+                        .execute()
+                    )
+
+                    values = result.get("values", [])
+
+                    if not values:
+                        logger.warning(f"Sheet '{sheet_name}' is empty")
+                        continue
+
+                    # Sanitize filename
+                    safe_sheet_name = re.sub(r"[^\w\s-]", "_", sheet_name).strip()
+                    csv_filename = csv_dir / f"{safe_sheet_name}.csv"
+
+                    # Write CSV
+                    with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        for row in values:
+                            csv_writer.writerow(row)
+
+                    logger.success(f"Exported to {csv_filename}")
+                    exported_sheets.append(sheet_name)
+
+                except Exception as e:
+                    logger.error(f"Failed to export sheet '{sheet_name}': {e}")
+
+            if exported_sheets:
+                logger.info(f"Successfully exported {len(exported_sheets)} sheet(s) to: {csv_dir}/")
+                return True
+            else:
+                logger.warning("No sheets were exported")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to export sheets as CSV: {e}")
+            return False
+
     def export_document(
         self, document_id: str, output_name: str | None = None, current_depth: int = 0
     ) -> dict[str, Path]:
@@ -795,6 +874,11 @@ class GoogleDriveExporter:
 
             if self._export_single_format(document_id, format_key, output_path, doc_type):
                 exported_files[format_key] = output_path
+
+        # For spreadsheets, also export all sheets as individual CSV files
+        if doc_type == DocumentType.SPREADSHEET:
+            logger.info("-" * 50)
+            self.export_all_sheets_as_csv(document_id, self.config.target_directory, safe_title)
 
         # Process linked documents if requested
         if self.config.follow_links and current_depth < self.config.link_depth and "html" in exported_files:

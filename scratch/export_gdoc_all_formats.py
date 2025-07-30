@@ -199,11 +199,81 @@ def export_document(service, file_id, export_format, mime_type, output_path):
         return False
 
 
+def export_all_sheets_as_csv(service, spreadsheet_id, output_dir, spreadsheet_title):
+    """Export all sheets from a Google Spreadsheet as separate CSV files"""
+    try:
+        # Build sheets service
+        sheets_service = build("sheets", "v4", credentials=service._http.credentials)
+
+        # Get spreadsheet metadata
+        spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        title = spreadsheet["properties"]["title"]
+        sheets = spreadsheet["sheets"]
+
+        print(f"\nExporting all sheets from '{title}' as CSV files:")
+        print(f"Found {len(sheets)} sheet(s)")
+
+        # Create directory with spreadsheet name prefix
+        safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in spreadsheet_title)
+        csv_dir = os.path.join(output_dir, "..", f"{safe_title}_csv_sheets")
+        os.makedirs(csv_dir, exist_ok=True)
+
+        exported_sheets = []
+
+        for sheet in sheets:
+            sheet_name = sheet["properties"]["title"]
+            print(f"\nExporting sheet: {sheet_name}")
+
+            # Get sheet data
+            try:
+                result = (
+                    sheets_service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=spreadsheet_id, range=f"'{sheet_name}'")
+                    .execute()
+                )
+
+                values = result.get("values", [])
+
+                if not values:
+                    print(f"  ⚠️  Sheet '{sheet_name}' is empty")
+                    continue
+
+                # Sanitize filename
+                safe_sheet_name = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in sheet_name)
+                csv_filename = os.path.join(csv_dir, f"{safe_sheet_name}.csv")
+
+                # Write CSV
+                import csv
+
+                with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    for row in values:
+                        csv_writer.writerow(row)
+
+                print(f"  ✅ Exported to {csv_filename}")
+                exported_sheets.append(sheet_name)
+
+            except Exception as e:
+                print(f"  ❌ Failed to export sheet '{sheet_name}': {e}")
+
+        if exported_sheets:
+            print(f"\nSuccessfully exported {len(exported_sheets)} sheet(s) to: {csv_dir}/")
+            return True
+        else:
+            print("\n⚠️  No sheets were exported")
+            return False
+
+    except Exception as e:
+        print(f"❌ Failed to export sheets as CSV: {e}")
+        return False
+
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python export_gdoc_all_formats.py <DOCUMENT_ID_OR_TEST>")
+        print("Usage: python export_gdoc_all_formats.py <DOCUMENT_ID_OR_URL_OR_TEST>")
         print("\nOptions:")
-        print("  - Provide a Google Doc/Sheet/Slides ID")
+        print("  - Provide a Google Doc/Sheet/Slides ID or full URL")
         print("  - Use 'test' to export all hardcoded test documents")
         print("  - Use 'doc', 'sheet', or 'slides' to export specific test document")
         print("\nTest documents:")
@@ -217,6 +287,32 @@ def main():
         sys.exit(1)
 
     arg = sys.argv[1].strip()
+
+    # Extract document ID from URL if a full URL is provided
+    if arg.startswith("https://docs.google.com/"):
+        import re
+
+        # Match various Google Docs URL patterns
+        patterns = [
+            r"/document/d/([a-zA-Z0-9-_]+)",
+            r"/spreadsheets/d/([a-zA-Z0-9-_]+)",
+            r"/presentation/d/([a-zA-Z0-9-_]+)",
+            r"/file/d/([a-zA-Z0-9-_]+)",
+        ]
+
+        doc_id = None
+        for pattern in patterns:
+            match = re.search(pattern, arg)
+            if match:
+                doc_id = match.group(1)
+                print(f"Extracted document ID from URL: {doc_id}")
+                arg = doc_id
+                break
+
+        if not doc_id:
+            print(f"Error: Could not extract document ID from URL: {arg}")
+            print("Please provide just the document ID or a valid Google Docs/Sheets/Slides URL")
+            sys.exit(1)
 
     # Authenticate and build service
     creds = authenticate()
@@ -235,8 +331,11 @@ def main():
         documents_to_process = [(doc["id"], doc["type"])]
     else:
         # Assume it's a document ID - try to detect type from file metadata
+        doc_type = None
+
+        # Try with supportsAllDrives=True first
         try:
-            file_metadata = service.files().get(fileId=arg, fields="mimeType").execute()
+            file_metadata = service.files().get(fileId=arg, fields="mimeType", supportsAllDrives=True).execute()
             mime_type = file_metadata.get("mimeType", "")
 
             if "document" in mime_type:
@@ -249,11 +348,40 @@ def main():
                 print(f"Unknown document type for MIME: {mime_type}")
                 doc_type = "document"  # Default fallback
 
-            documents_to_process = [(arg, doc_type)]
-        except Exception as e:
-            print(f"Error detecting document type: {e}")
-            print("Defaulting to document type")
-            documents_to_process = [(arg, "document")]
+        except Exception:
+            # Try without supportsAllDrives
+            try:
+                file_metadata = service.files().get(fileId=arg, fields="mimeType").execute()
+                mime_type = file_metadata.get("mimeType", "")
+
+                if "document" in mime_type:
+                    doc_type = "document"
+                elif "spreadsheet" in mime_type:
+                    doc_type = "spreadsheet"
+                elif "presentation" in mime_type:
+                    doc_type = "presentation"
+                else:
+                    print(f"Unknown document type for MIME: {mime_type}")
+                    doc_type = "document"  # Default fallback
+
+            except Exception as e2:
+                print(f"Error detecting document type: {e2}")
+                # Try to infer from the original URL if it was provided
+                if sys.argv[1].strip().startswith("https://docs.google.com/"):
+                    if "/spreadsheets/" in sys.argv[1]:
+                        print("Detected spreadsheet from URL pattern")
+                        doc_type = "spreadsheet"
+                    elif "/presentation/" in sys.argv[1]:
+                        print("Detected presentation from URL pattern")
+                        doc_type = "presentation"
+                    else:
+                        print("Defaulting to document type")
+                        doc_type = "document"
+                else:
+                    print("Defaulting to document type")
+                    doc_type = "document"
+
+        documents_to_process = [(arg, doc_type)]
 
     # Process each document
     for document_id, doc_type in documents_to_process:
@@ -283,6 +411,11 @@ def main():
 
             if export_document(service, document_id, format_ext, mime_type, output_path):
                 successful_exports.append(format_ext)
+
+        # For spreadsheets, also export all sheets as individual CSV files
+        if doc_type == "spreadsheet":
+            print("\n" + "-" * 50)
+            export_all_sheets_as_csv(service, document_id, output_dir, doc_title)
 
         # Summary
         print("\n" + "=" * 50)
