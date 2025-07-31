@@ -12,17 +12,14 @@ from typing import Any
 
 from agno.agent import Agent, RunResponse, RunResponseEvent
 from agno.models.google import Gemini
-from agno.storage.sqlite import SqliteStorage
-from agno.tools.file import FileTools
-from agno.tools.knowledge import KnowledgeTools
 from agno.tools.reasoning import ReasoningTools
 from loguru import logger
 
-from ..knowledge import KnowledgeManager
 from .base import BaseAgentFactory
+from .mixins import KnowledgeMixin, StorageMixin, WorkspaceMixin
 
 
-class SearchAgent(BaseAgentFactory):
+class SearchAgent(KnowledgeMixin, StorageMixin, WorkspaceMixin, BaseAgentFactory):
     """AI-powered search agent using Agno framework with RAG capabilities."""
 
     def __init__(
@@ -47,16 +44,14 @@ class SearchAgent(BaseAgentFactory):
         if storage_path is None:
             storage_path = self.get_default_storage_path("search")
 
-        self.workspace_dir = workspace_dir or Path("./workspace")
-
-        super().__init__(storage_path=storage_path, memory=memory)
+        super().__init__(
+            storage_path=storage_path, workspace_dir=workspace_dir, knowledge_path=knowledge_path, memory=memory
+        )
 
         self.user_id = user_id
-        self.knowledge_manager = KnowledgeManager(knowledge_path=knowledge_path)
         self._agent: Agent | None = None
         self._initialized = False
         self._session_id: str | None = None
-        self._knowledge: Any = None  # Will be loaded during setup_context
 
         logger.debug(f"SearchAgent initialized: storage_path={storage_path}, user_id={user_id}")
 
@@ -105,8 +100,7 @@ class SearchAgent(BaseAgentFactory):
 
     async def setup_context(self) -> Any:
         """Setup async context - load knowledge base."""
-        logger.info("Loading knowledge base for search agent")
-        self._knowledge = await self.knowledge_manager.aload_knowledge(recreate=False)
+        await self.load_knowledge(recreate=False)
         return None  # No specific context object needed
 
     async def cleanup_context(self, context: None) -> None:
@@ -128,7 +122,7 @@ class SearchAgent(BaseAgentFactory):
         """
         _ = args  # Unused parameters
         _ = kwargs  # Unused parameters
-        if self._knowledge is None:
+        if self.knowledge is None:
             raise RuntimeError("Knowledge base not loaded. Call setup_context() first.")
 
         # Create storage directory if needed
@@ -136,23 +130,13 @@ class SearchAgent(BaseAgentFactory):
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create agent storage
-        storage = SqliteStorage(
-            table_name="search_agent_sessions",
-            db_file=str(self.storage_path),
-        )
+        storage = self.create_storage("search_agent_sessions")
 
         # Create knowledge tools
-        knowledge_tools = KnowledgeTools(
-            knowledge=self._knowledge,
-            think=True,
-            search=True,
-            analyze=True,
-            add_instructions=True,
-            add_few_shot=True,
-        )
+        knowledge_tools = self.create_knowledge_tools()
 
         # Create file tools for workspace operations
-        file_tools = FileTools(base_dir=self.workspace_dir)
+        file_tools = self.create_file_tools()
 
         # Create the agent
         agent = Agent(
@@ -217,7 +201,7 @@ class SearchAgent(BaseAgentFactory):
             logger.info("Initializing search agent and knowledge base")
 
             # Load knowledge base synchronously
-            self._knowledge = self.knowledge_manager.load_knowledge(recreate=False)
+            self.load_knowledge_sync(recreate=False)
 
             # Create the agent
             self._agent = self.create_agent()
