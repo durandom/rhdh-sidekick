@@ -121,6 +121,24 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }
+        },
+        {
+            "name": "sidekick chat release",
+            "type": "python",
+            "request": "launch",
+            "module": "sidekick.cli.app",
+            "args": [
+                "-vv",
+                "chat",
+                "release",
+                "explain how you would provide a 'Release Manager Update', write the explanation to a file in our workspace, include a jira queries you would execute."
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }

@@ -10,7 +10,6 @@ release management activities for Red Hat Developer Hub (RHDH), including:
 - Release readiness assessment
 """
 
-from os import getenv
 from pathlib import Path
 from typing import Any
 
@@ -67,11 +66,7 @@ class ReleaseManagerAgent(JiraMixin, KnowledgeMixin, StorageMixin, WorkspaceMixi
             List of instruction strings for the agent
         """
         # Use the new prompt template system
-        jira_url = getenv("JIRA_URL", "your JIRA instance")
-        return self.get_agent_instructions_from_template(
-            jira_instance=jira_url,
-            knowledge_base_name="RHDH Release Manager documentation",
-        )
+        return self.get_agent_instructions_from_template()
 
     def create_agent(self, context: tuple[MCPTools, Any]) -> Agent:
         """Create and return a configured Agno Agent with Release Manager capabilities.
