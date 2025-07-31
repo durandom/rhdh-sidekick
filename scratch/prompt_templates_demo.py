@@ -14,11 +14,7 @@ from pathlib import Path
 from loguru import logger
 from rich.console import Console
 
-from sidekick.prompts import (
-    BasePromptTemplate,
-    PromptConfig,
-    get_prompt_registry,
-)
+from sidekick.prompts import BasePromptTemplate, PromptConfig, get_prompt_registry
 
 console = Console()
 
@@ -46,9 +42,7 @@ def demo_variable_substitution():
     jira_template = registry.get("agents.jira")
 
     # Use with custom variables
-    custom_instructions = jira_template.format(
-        jira_instance="https://mycompany.atlassian.net", default_project="SIDEKICK"
-    )
+    custom_instructions = jira_template.format(jira_instance="https://mycompany.atlassian.net", default_project="SIDEKICK")
 
     console.print("Custom JIRA instructions (first 200 chars):")
     console.print(custom_instructions[:200] + "...")

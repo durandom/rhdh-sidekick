@@ -27,6 +27,7 @@ from .jira_triager import jira_triager_app
 from .knowledge import knowledge_app
 from .prompts import prompts_app
 from .release_notes import release_notes_app
+from .research import research_app
 from .test_analysis import test_analysis_app
 
 load_dotenv(verbose=True)  # take environment variables
@@ -41,9 +42,7 @@ def setup_langfuse() -> None:
         host = os.getenv("LANGFUSE_HOST")
 
         if not all([public_key, secret_key, host]):
-            logger.warning(
-                "Langfuse configuration incomplete. Missing LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, or LANGFUSE_HOST"
-            )
+            logger.warning("Langfuse configuration incomplete. Missing LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, or LANGFUSE_HOST")
             return
 
         # At this point, we know all values are not None
@@ -131,10 +130,7 @@ def setup_logging(config: LoggingConfig) -> None:
             logger.info(f"Pytest mode: Logging to {log_path}")
 
     # Log configuration info
-    logger.debug(
-        f"Logging configured: level={level}, format={config.format}, "
-        f"file={config.file}, pytest_mode={config.pytest_mode}"
-    )
+    logger.debug(f"Logging configured: level={level}, format={config.format}, file={config.file}, pytest_mode={config.pytest_mode}")
 
 
 app = typer.Typer(
@@ -145,11 +141,12 @@ app = typer.Typer(
 
 # Register sub-applications
 app.add_typer(chat_app)
+app.add_typer(jira_triager_app)
 app.add_typer(knowledge_app)
 app.add_typer(prompts_app)
 app.add_typer(release_notes_app)
+app.add_typer(research_app)
 app.add_typer(test_analysis_app)
-app.add_typer(jira_triager_app)
 
 # Add global options and commands
 console = Console()
@@ -171,9 +168,7 @@ def version() -> None:
 def info() -> None:
     """Show application information."""
     console.print("[bold blue]RHDH Sidekick[/bold blue] - Local Engineering Assistant")
-    console.print(
-        "\n[yellow]A locally-running agentic system designed to act as your personal engineering assistant.[/yellow]"
-    )
+    console.print("\n[yellow]A locally-running agentic system designed to act as your personal engineering assistant.[/yellow]")
     console.print("\nIntegrates with your existing tools (GitHub, Jira, codebase) to help automate routine")
     console.print("development tasks without requiring context switches to chat interfaces.")
 

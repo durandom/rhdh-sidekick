@@ -139,9 +139,7 @@ def parse_json_to_jira_issue(json_content: str) -> JiraIssueData | None:
         try:
             # Test if it's valid JSON at all
             parsed = json.loads(json_content)
-            logger.debug(
-                f"JSON is valid, parsed keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not a dict'}"
-            )
+            logger.debug(f"JSON is valid, parsed keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not a dict'}")
         except json.JSONDecodeError as json_err:
             logger.debug(f"JSON decode error: {json_err}")
             # Show the problematic area
@@ -279,10 +277,7 @@ def _format_issue_details(issue: Issue) -> JiraIssueData:
         # Release note status (customfield_12310213)
         release_note_status = getattr(issue.fields, "customfield_12310213", None)
         if release_note_status:
-            if hasattr(release_note_status, "get"):
-                status_value = release_note_status.get("value")
-            else:
-                status_value = str(release_note_status)
+            status_value = release_note_status.get("value") if hasattr(release_note_status, "get") else str(release_note_status)
             custom_fields["release_note_status"] = status_value
             logger.debug(f"Found release note status for {issue.key}: {status_value}")
 
@@ -455,10 +450,7 @@ def jira_search_issues(jql_query: str, max_results: int = 50) -> str:
                 # Check for release note status
                 release_note_status = getattr(issue.fields, "customfield_12310213", None)
                 if release_note_status:
-                    if hasattr(release_note_status, "get"):
-                        status_value = release_note_status.get("value")
-                    else:
-                        status_value = str(release_note_status)
+                    status_value = release_note_status.get("value") if hasattr(release_note_status, "get") else str(release_note_status)
                     custom_fields["release_note_status"] = status_value
                     logger.debug(f"Found release note status in {issue.key}: {status_value}")
 
