@@ -18,9 +18,10 @@ from agno.tools.github import GithubTools
 from loguru import logger
 
 from .base import BaseAgentFactory
+from .mixins.storage_mixin import StorageMixin
 
 
-class GitHubAgent(BaseAgentFactory):
+class GitHubAgent(StorageMixin, BaseAgentFactory):
     """Factory class for creating GitHub-enabled Agno agents."""
 
     def __init__(
@@ -44,9 +45,9 @@ class GitHubAgent(BaseAgentFactory):
             storage_path = self.get_default_storage_path("github")
 
         self.workspace_dir = workspace_dir or Path("./workspace")
+        self.repository = repository
 
         super().__init__(storage_path=storage_path, memory=memory, repository=repository)
-        self.repository = repository
 
         logger.debug(
             f"GitHubAgent factory initialized: storage_path={storage_path}, "
@@ -112,23 +113,16 @@ class GitHubAgent(BaseAgentFactory):
 
         return instructions
 
-    def create_storage(self) -> SqliteStorage:
+    def create_storage(self, table_name: str = "github_agent_sessions") -> SqliteStorage:
         """Create and return configured storage for the agent.
+
+        Args:
+            table_name: Name of the database table to use (default: "github_agent_sessions")
 
         Returns:
             Configured SqliteStorage instance
         """
-        # Create storage directory if needed
-        if self.storage_path:
-            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-
-        storage = SqliteStorage(
-            table_name="github_agent_sessions",
-            db_file=str(self.storage_path),
-        )
-
-        logger.debug(f"Created GitHub agent storage at {self.storage_path}")
-        return storage
+        return super().create_storage(table_name=table_name)
 
     def create_agent(self, github_tools: GithubTools) -> Agent:
         """Create and return a configured Agno Agent with GitHub capabilities.
