@@ -657,7 +657,7 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 ---
 
 ### Future Improvements
-- Better Jira integration: 
+- Better Jira integration:
   - Pull Jira issues with missing team/components automatically
   - Implement command to apply changes to the Jira ticket automatically
 - Consider assigning multiple related components

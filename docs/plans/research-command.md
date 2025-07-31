@@ -172,7 +172,7 @@ coordinator_agent = Agent(
 )
 
 gatherer_agent = Agent(
-    name="Information Gatherer", 
+    name="Information Gatherer",
     model=Claude(id="claude-sonnet-4-20250514"),
     tools=[WebSearchTools(), KnowledgeSearchTools(), ArxivTools()],
     instructions="Collect information from web, local knowledge, and arXiv sources.",
@@ -180,7 +180,7 @@ gatherer_agent = Agent(
 
 grader_agent = Agent(
     name="Grading Agent",
-    model=Claude(id="claude-sonnet-4-20250514"), 
+    model=Claude(id="claude-sonnet-4-20250514"),
     instructions="Grade relevance, quality, and novelty of information. Provide structured scores and importance statements.",
 )
 
@@ -213,13 +213,13 @@ def save_relevant_knowledge(workflow, execution_input):
     """Custom function to save high-scoring knowledge to knowledge base"""
     graded_data = execution_input.get("graded_data", [])
     saved_items = []
-    
+
     for item in graded_data:
         if item.get("relevance_score", 0) >= workflow.save_threshold:
             # Save to knowledge base with importance statement
             saved_items.append(item)
             # Integration with existing KnowledgeManager here
-    
+
     return {"saved_knowledge": saved_items}
 
 # Evaluator function for continuing research
@@ -228,10 +228,10 @@ def should_continue_research(step_input) -> bool:
     review_result = step_input.get("review_result", {})
     current_round = step_input.get("current_round", 0)
     max_rounds = step_input.get("max_rounds", 3)
-    
+
     is_incomplete = review_result.get("is_complete", False) == False
     under_limit = current_round < max_rounds
-    
+
     return is_incomplete and under_limit
 
 # Workflow v2 Definition
@@ -244,7 +244,7 @@ research_workflow = Workflow(
             name="Research Planning",
             agent=coordinator_agent
         ),
-        
+
         # Step 2: Iterative research with conditional continuation
         Loop(
             name="Research Iteration Loop",
@@ -255,19 +255,19 @@ research_workflow = Workflow(
                     Step(name="Local Knowledge Search", agent=gatherer_agent),
                     Step(name="ArXiv Search", agent=gatherer_agent),
                 ),
-                
+
                 # Grade all collected information
                 Step(name="Grade Information", agent=grader_agent),
-                
+
                 # Save relevant knowledge (custom function)
                 Step(name="Save Knowledge", function=save_relevant_knowledge),
-                
+
                 # Analyze findings
                 Step(name="Analyze Findings", agent=analyst_agent),
-                
+
                 # Review for completeness
                 Step(name="Quality Review", agent=reviewer_agent),
-                
+
                 # Conditional continuation
                 Condition(
                     name="Continue Research Check",
@@ -278,7 +278,7 @@ research_workflow = Workflow(
                 )
             ]
         ),
-        
+
         # Step 3: Final report generation
         Step(
             name="Generate Report",
@@ -296,10 +296,10 @@ async def run_research(query: str, options: dict) -> ResearchResult:
         save_threshold=options.get("save_threshold", 8.0),
         review_threshold=options.get("review_threshold", 6.0)
     )
-    
+
     # Execute the workflow v2
     result = await research_workflow.arun(research_input.model_dump())
-    
+
     return ResearchResult(
         findings=result.get("findings", []),
         saved_knowledge=result.get("saved_knowledge", []),

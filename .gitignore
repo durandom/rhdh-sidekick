@@ -286,3 +286,6 @@ tmp/token_drive.json
 
 # tmp files
 tmp/
+
+reports/
+knowledge/research/
