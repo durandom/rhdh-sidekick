@@ -17,6 +17,8 @@ Thank you for your interest in contributing to RHDH Sidekick! This guide will he
 
 RHDH Sidekick is a locally-running agentic system built on the [Agno](https://github.com/agno-agi/agno) framework. It provides AI-powered assistance for engineering tasks through specialized agents that integrate with your development tools.
 
+For a detailed technical architecture including diagrams and component descriptions, see the [Architecture Documentation](docs/architecture.md).
+
 ### Core Components
 
 1. **CLI Layer** (`src/sidekick/cli/`)
@@ -95,6 +97,8 @@ uv run ruff check
 uv run mypy src/
 ```
 
+For complete configuration options and environment variables, see the [Configuration Guide](docs/configuration.md).
+
 ## Code Structure
 
 ```
@@ -156,6 +160,8 @@ Agents use YAML-based prompt templates that support:
 4. Create prompt template in `src/sidekick/prompts/templates/agents/`
 5. Add CLI command in `src/sidekick/cli/`
 
+For a comprehensive step-by-step guide with examples and best practices, see the [Creating Agents Guide](docs/creating-agents.md).
+
 Example structure:
 ```python
 from ..agents.base import BaseAgentFactory
@@ -213,6 +219,8 @@ uv run pytest tests/unit/test_agents.py
 # With coverage
 uv run pytest --cov=src --cov-report=html
 ```
+
+For detailed testing patterns, debugging tips, and best practices, see the [Testing Guide](docs/testing.md).
 
 ## Documentation
 
@@ -275,6 +283,15 @@ Follow conventional commits:
 - Review the documentation in `docs/`
 - Ask questions in pull requests
 - Refer to the Agno documentation for framework details
+
+## Detailed Documentation
+
+For more in-depth information, see these guides in the `docs/` directory:
+
+- **[Architecture](docs/architecture.md)** - System architecture, components, and data flow
+- **[Configuration](docs/configuration.md)** - Environment variables, settings, and runtime configuration
+- **[Creating Agents](docs/creating-agents.md)** - Step-by-step guide to building new agents
+- **[Testing](docs/testing.md)** - Testing strategies, patterns, and best practices
 
 ## Additional Resources
 
