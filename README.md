@@ -131,6 +131,27 @@ uv run sidekick chat team "Find PRs related to ticket PROJ-123"
 uv run sidekick chat team "Show me recent activity"
 ```
 
+#### Release Manager Agent
+RHDH release coordination and management:
+
+```bash
+# Start interactive Release Manager chat
+uv run sidekick chat release
+
+# Start with an initial query
+uv run sidekick chat release "What's the status of release 1.6.0?"
+uv run sidekick chat release "Show me blocker bugs for current release"
+uv run sidekick chat release "Create test plan for 1.7.0"
+```
+
+The Release Manager agent specializes in:
+- **Release Planning** - Coordinate release schedules and milestones
+- **Feature Tracking** - Monitor feature completion and readiness
+- **Test Plan Management** - Create and manage comprehensive test plans
+- **Documentation Coordination** - Ensure release documentation is complete
+- **Release Readiness Assessment** - Evaluate release criteria and blockers
+- **Stakeholder Communication** - Generate status reports and updates
+
 ### Interactive Features
 
 All chat commands provide:
