@@ -677,6 +677,15 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 - Consider assigning multiple related components
 - Consider: For ArgoCD (not Roadie), Tekton and Quay plugins RHDHBugs should go to RHTAPBugs and engage the RHTAP UI team.
 
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+- Architecture overview
+- Development setup
+- How to add new agents and features
+- Testing guidelines
+- Submitting pull requests
+
 ## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) file for details.
