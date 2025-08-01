@@ -42,10 +42,11 @@ cp .env.example .env
 ### Required Environment Variables
 
 ```bash
+# Google API Key (required for test analysis and knowledge management)
+GOOGLE_API_KEY=your-google-api-key
 # JIRA Configuration (required for release notes)
 JIRA_SERVER_URL=https://your-jira-instance.com
 JIRA_TOKEN=your-jira-api-token
-
 # GitHub Configuration (required for release notes)
 GITHUB_ACCESS_TOKEN=your-github-token
 ```
@@ -55,6 +56,19 @@ GITHUB_ACCESS_TOKEN=your-github-token
 - **JIRA Token**: Go to your JIRA profile → Security → API tokens → Create token
 - **GitHub Token**: Go to GitHub Settings → Developer settings → Personal access tokens → Generate new token
   - Required scopes: `repo` (for accessing pull requests)
+- **Google API Key**: Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create API key
+  - Required for accessing Google Cloud Storage for test analysis artifacts
+
+
+## 📋 Knowledge Base Setup (Required)
+
+Before using the AI-powered search features, you need to populate the knowledge base:
+
+1. **Configure knowledge sources** in `knowledge/external/sources.yaml`
+2. **Sync knowledge sources**: `uv run sidekick knowledge sync`
+3. **For Google Drive sources**, you'll need OAuth2 setup (see [knowledge/README.md](knowledge/README.md) for detailed instructions)
+
+The knowledge sync downloads documentation from Google Drive, Git repositories, and web pages that power the AI search capabilities. Without this step, search features will have no content to search through.
 
 ## 💬 Interactive Chat Commands
 
@@ -657,7 +671,7 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 ---
 
 ### Future Improvements
-- Better Jira integration: 
+- Better Jira integration:
   - Pull Jira issues with missing team/components automatically
   - Implement command to apply changes to the Jira ticket automatically
 - Consider assigning multiple related components
