@@ -9,7 +9,7 @@ dependencies = [
   "typer>=0.9.0", # CLI framework
   "rich>=13.0.0", # Rich terminal output
   "python-dotenv>=1.0.0", # Environment variable management
-  "agno>=1.7.2",
+  "agno==1.7.6",
   "anthropic>=0.57.1",
   "yfinance>=0.2.65",
   "lancedb>=0.24.1",
