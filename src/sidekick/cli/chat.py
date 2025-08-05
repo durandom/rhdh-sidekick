@@ -15,6 +15,7 @@ from ..agents.base import BaseAgentFactory
 from ..agents.github_agent import GitHubAgent
 from ..agents.jira_agent import JiraAgent
 from ..agents.release_manager import ReleaseManagerAgent
+from ..agents.release_notes_agent import ReleaseNotesAgent
 from ..memory_config import create_memory_instance
 from ..teams.tag_team import TagTeam
 
@@ -304,6 +305,46 @@ def release(
 
 
 @chat_app.command()
+def release_notes(
+    message: str = typer.Argument(
+        None,
+        help="Initial message to send to the Release Notes agent",
+    ),
+) -> None:
+    """
+    Start an interactive chat session with the Release Notes agent.
+
+    This command initializes a Release Notes agent that generates comprehensive
+    release notes from JIRA tickets and associated GitHub pull requests.
+    The agent can extract PR links from tickets, gather technical details,
+    and format professional release documentation.
+
+    Example:
+        sidekick chat release-notes
+        sidekick chat release-notes "Generate release notes for PROJ-123"
+        sidekick chat release-notes "Create release notes for ticket ABC-456 in text format"
+    """
+    logger.debug(f"Chat release-notes called with message={message}")
+
+    async def run_chat():
+        try:
+            streaming_enabled = get_streaming_enabled()
+            user_id = get_user_id()
+            memory = create_memory_instance("release_notes_agent_memory")
+            agent_factory = ReleaseNotesAgent(memory=memory)
+            await run_agent_chat(agent_factory, message, streaming_enabled, user_id)
+        except Exception as e:
+            logger.error(f"Failed to run Release Notes chat: {e}")
+            console.print(f"\n[red]Error:[/red] {e}")
+            console.print("\n[yellow]Note:[/yellow] Make sure you have the required environment variables set:")
+            console.print("  - JIRA_URL")
+            console.print("  - JIRA_PERSONAL_TOKEN")
+            console.print("  - GITHUB_ACCESS_TOKEN")
+
+    asyncio.run(run_chat())
+
+
+@chat_app.command()
 def info() -> None:
     """Show information about the chat functionality."""
     console.print("[bold blue]Interactive AI Chat[/bold blue]")
@@ -315,6 +356,7 @@ def info() -> None:
     console.print("  • [cyan]github[/cyan] - GitHub repository and PR management")
     console.print("  • [cyan]team[/cyan] - Coordinated Jira & GitHub operations")
     console.print("  • [cyan]release[/cyan] - RHDH Release Manager coordination")
+    console.print("  • [cyan]release-notes[/cyan] - Release notes generation from Jira tickets and GitHub PRs")
 
     console.print("\n[bold]Usage:[/bold]")
     console.print("  sidekick chat search                          # Start search agent")
@@ -322,9 +364,11 @@ def info() -> None:
     console.print("  sidekick chat github                          # Start GitHub agent")
     console.print("  sidekick chat team                            # Start Tag Team")
     console.print("  sidekick chat release                         # Start Release Manager")
+    console.print("  sidekick chat release-notes                   # Start Release Notes generator")
     console.print("  sidekick chat github --repo owner/repo        # GitHub with default repo")
     console.print("  sidekick chat team --repo owner/repo          # Tag Team with default repo")
     console.print('  sidekick chat search "your query"            # Agent with initial message')
+    console.print('  sidekick chat release-notes "Generate notes for PROJ-123"  # Release notes with task')
 
     console.print("\n[bold]Features:[/bold]")
     console.print("  • Interactive chat sessions with context retention")
@@ -337,6 +381,7 @@ def info() -> None:
     console.print("  • GITHUB_ACCESS_TOKEN - For GitHub agent")
     console.print("  • Both Jira and GitHub variables - For Tag Team")
     console.print("  • JIRA_URL, JIRA_PERSONAL_TOKEN - For Release Manager")
+    console.print("  • JIRA_URL, JIRA_PERSONAL_TOKEN, GITHUB_ACCESS_TOKEN - For Release Notes")
 
 
 if __name__ == "__main__":
