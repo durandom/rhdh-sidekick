@@ -8,9 +8,10 @@ A locally-running agentic system designed to act as your personal engineering as
 
 **Current Features:**
 - AI-powered knowledge search with RAG capabilities
-- Automated release notes generation from Jira tickets and GitHub PRs
+- Interactive chat interfaces for Jira, GitHub, and cross-platform operations
+- Automated release notes generation from Jira tickets and GitHub PRs through chat interface
 - Automated test failure analysis for Playwright tests from Prow CI
-- Interactive conversational interfaces for iterative refinement
+- Interactive conversational interfaces with memory and context retention
 
 **Planned Features:** Daily standup prep, PR review assistance, Jira maintenance, documentation updates, dynamic plugin configuration, and CI/CD flake analysis.
 
@@ -44,10 +45,10 @@ cp .env.example .env
 ```bash
 # Google API Key (required for test analysis and knowledge management)
 GOOGLE_API_KEY=your-google-api-key
-# JIRA Configuration (required for release notes)
-JIRA_SERVER_URL=https://your-jira-instance.com
-JIRA_TOKEN=your-jira-api-token
-# GitHub Configuration (required for release notes)
+# JIRA Configuration (required for release notes and Jira agent)
+JIRA_URL=https://your-jira-instance.com
+JIRA_PERSONAL_TOKEN=your-jira-api-token
+# GitHub Configuration (required for release notes and GitHub agent)
 GITHUB_ACCESS_TOKEN=your-github-token
 ```
 
@@ -152,6 +153,25 @@ The Release Manager agent specializes in:
 - **Release Readiness Assessment** - Evaluate release criteria and blockers
 - **Stakeholder Communication** - Generate status reports and updates
 
+#### Release Notes Agent
+Automated generation of comprehensive release notes from Jira tickets and GitHub PRs:
+
+```bash
+# Start interactive Release Notes chat
+uv run sidekick chat release-notes
+
+# Start with an initial query
+uv run sidekick chat release-notes "Generate release notes for RHIDP-3568"
+uv run sidekick chat release-notes "Create release notes for ticket ABC-456 in text format"
+```
+
+The Release Notes agent specializes in:
+- **Automatic PR Discovery** - Extracts GitHub PR links from Jira tickets
+- **Comprehensive Analysis** - Analyzes ticket details, PR descriptions, and code changes
+- **Professional Formatting** - Generates well-structured release notes in markdown or text
+- **Interactive Refinement** - Allows follow-up questions to modify format or content
+- **Workspace Integration** - Can save release notes to files for further use
+
 ### Interactive Features
 
 All chat commands provide:
@@ -241,17 +261,6 @@ uv run sidekick chat team "Analyze the implementation of feature ABC-456"
 uv run sidekick chat team "What tickets are blocking the current sprint?"
 ```
 
-### Required Environment Variables
-
-```bash
-# For Jira integration
-JIRA_URL=https://your-jira-instance.com
-JIRA_PERSONAL_TOKEN=your-jira-api-token
-
-# For GitHub integration
-GITHUB_ACCESS_TOKEN=your-github-token
-```
-
 ### Getting Help
 
 ```bash
@@ -261,44 +270,60 @@ uv run sidekick chat info
 
 ## 📝 Release Notes Generation
 
-The release notes command generates comprehensive release notes from JIRA tickets and associated GitHub pull requests using AI.
+The release notes feature provides AI-powered generation of comprehensive release notes from JIRA tickets and associated GitHub pull requests through an interactive chat interface.
 
 ### Usage
 
 ```bash
-# Generate release notes for a JIRA ticket
-uv run sidekick release-notes generate PROJ-123
+# Start interactive release notes chat
+uv run sidekick chat release-notes
 
-# Generate release notes in text format
-uv run sidekick release-notes generate PROJ-456 --format text
+# Start with a specific ticket
+uv run sidekick chat release-notes "Generate release notes for RHIDP-3568"
 
-# Show information about the release notes feature
-uv run sidekick release-notes info
+# Request specific formatting
+uv run sidekick chat release-notes "Create release notes for ticket ABC-456 in text format"
+
+# Get information about release notes capabilities
+uv run sidekick chat info
 ```
 
-### Interactive Follow-up
+### Interactive Features
 
-After generating release notes, you can ask follow-up questions:
+The release notes agent provides a conversational interface that allows you to:
 
 ```bash
-uv run sidekick release-notes generate PROJ-123
-# After initial generation, you can ask:
+# After starting the chat session, you can ask:
+# - "Generate release notes for RHIDP-3568"
 # - "Make it more concise"
 # - "Add more technical details"
 # - "Explain the security improvements"
 # - "Format this for a blog post"
+# - "Save the release notes to a file"
+# - "Show me the GitHub PRs for this ticket"
 ```
 
 ### How It Works
 
-1. **Fetches JIRA ticket details** using the provided ticket ID
-2. **Extracts GitHub PR links** from ticket descriptions, comments, or fields
-3. **Retrieves PR details** including descriptions, changes, and commits
+1. **Fetches JIRA ticket details** using the local JIRA tools with comprehensive data extraction
+2. **Extracts GitHub PR links** from ticket descriptions, comments, and custom fields
+3. **Retrieves PR details** including descriptions, changes, and commits using GitHub API
 4. **Generates comprehensive release notes** using AI that includes:
    - Clear title based on JIRA ticket summary
    - Key changes and improvements from PR descriptions
    - Technical details from changed files when relevant
    - Proper markdown or text formatting
+5. **Provides interactive refinement** through follow-up questions and modifications
+6. **Supports file operations** for saving release notes to workspace files
+
+### Key Features
+
+- **Memory Integration** - Remembers your Jira and GitHub account information across sessions
+- **Contextual Conversations** - Maintains context throughout the chat session
+- **Flexible Output** - Supports both markdown and text formats
+- **Workspace Integration** - Can save generated release notes to files
+- **Comprehensive Analysis** - Analyzes ticket metadata, custom fields, and PR relationships
+- **Interactive Refinement** - Modify content, format, and style through natural conversation
 
 > **Note**: The release notes generator is based on work from [dzemanov/release-notes-generator](https://gitlab.cee.redhat.com/dzemanov/release-notes-generator) ([GitHub](https://github.com/dzemanov)).
 

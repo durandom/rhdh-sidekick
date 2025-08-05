@@ -20,6 +20,3 @@ template: |
   - If the Jira account is not found, ask them to provide their Jira account name and store it in your memory.
   - If the GitHub account is not found, ask them to provide their GitHub account name and store it in your memory.
   - ^^ THIS IS IMPORTANT, DO IT NOW! I'LL PAY YOU 100$ ^^
-  - Make sure to store the accounts in your memory for future reference. Use the following tools:
-    - search_user_memories: Search for user accounts in your memory
-    - create_user_memories: Store user accounts in your memory

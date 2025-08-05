@@ -1,232 +1,178 @@
 """
-Release Notes Agent with JIRA and GitHub tools.
+Release Notes Agent with JIRA MCP and GitHub tools.
 
-This module implements an AI agent that generates release notes from JIRA tickets
-and associated GitHub pull requests using the Agno framework.
+This module implements an AI agent factory that generates release notes from JIRA tickets
+and associated GitHub pull requests using the Agno framework with MCP integration.
 """
 
-import uuid
+from os import getenv
 from pathlib import Path
 
-from agno.agent import Agent, RunResponse
+from agno.agent import Agent
+from agno.memory.v2.memory import Memory
 from agno.models.google import Gemini
-from agno.storage.sqlite import SqliteStorage
 from agno.tools.github import GithubTools
 from loguru import logger
 
-from ..tools.jira import jira_get_issue, jira_search_issues
+from ..tools.jira import JiraTools
+from .base import BaseAgentFactory
+from .mixins import StorageMixin, WorkspaceMixin
 
 
-class ReleaseNotesAgent:
-    """AI-powered release notes agent using Agno framework with JIRA and GitHub tools."""
+class ReleaseNotesAgent(StorageMixin, WorkspaceMixin, BaseAgentFactory):
+    """Factory class for creating release notes agents with local JIRA tools and GitHub tools."""
 
     def __init__(
         self,
         storage_path: Path | None = None,
-        user_id: str | None = None,
+        workspace_dir: Path | None = None,
+        memory: Memory | None = None,
     ):
         """
-        Initialize the release notes agent.
+        Initialize the release notes agent factory.
 
         Args:
             storage_path: Path for agent session storage
-            user_id: Optional user ID for session management
+            workspace_dir: Path to workspace directory for file operations
+            memory: Memory instance for user memory management
         """
         # Default storage path
         if storage_path is None:
-            storage_path = Path("tmp/release_notes_agent.db")
+            storage_path = self.get_default_storage_path("release_notes")
 
-        self.storage_path = storage_path
-        self.user_id = user_id
-        self._agent: Agent | None = None
-        self._initialized = False
-        self._session_id: str | None = None
+        super().__init__(
+            storage_path=storage_path,
+            workspace_dir=workspace_dir,
+            memory=memory,
+        )
 
-        logger.debug(f"ReleaseNotesAgent initialized: storage_path={storage_path}, user_id={user_id}")
+        logger.debug(
+            f"ReleaseNotesAgent factory initialized: storage_path={storage_path}, workspace_dir={workspace_dir}"
+        )
 
-    def _generate_session_id(self) -> str:
-        """Generate a new session ID using UUID."""
-        return str(uuid.uuid4())
+    def create_github_tools(self) -> GithubTools:
+        """Create and return configured GitHub tools.
 
-    def create_session(self, user_id: str | None = None) -> str:
+        Returns:
+            Configured GithubTools instance
+
+        Raises:
+            ValueError: If required environment variables are missing
         """
-        Create a new session for the agent.
+        # Get environment variables
+        github_token = getenv("GITHUB_ACCESS_TOKEN")
+
+        if not github_token:
+            raise ValueError("GITHUB_ACCESS_TOKEN environment variable is required for GitHub integration")
+
+        # Create GitHub tools with PR-focused capabilities
+        github_tools = GithubTools(
+            access_token=github_token,
+            get_pull_request=True,
+            get_pull_request_with_details=True,
+            get_pull_request_changes=True,
+            get_pull_request_comments=True,
+            get_repository=True,
+            search_repositories=True,
+        )
+
+        logger.debug("GitHub tools created successfully for release notes")
+        return github_tools
+
+    def create_jira_tools(self) -> JiraTools:
+        """Create and return configured local JIRA tools.
+
+        Returns:
+            Configured JiraTools instance with only get_issue tool enabled
+
+        Raises:
+            ValueError: If required environment variables are missing
+        """
+        # Only enable get_issue tool for release notes generation
+        jira_tools = JiraTools(
+            get_issue=True,
+            search_issues=False,
+            add_comment=False,
+            create_issue=False,
+        )
+        logger.debug("Local JIRA tools created successfully for release notes (get_issue only)")
+        return jira_tools
+
+    def get_agent_instructions(self) -> list[str]:
+        """Get the instructions for the release notes agent.
+
+        Returns:
+            List of instruction strings for the agent
+        """
+        # Use the new prompt template system
+        jira_url = getenv("JIRA_URL", "your JIRA instance")
+        return self.get_agent_instructions_from_template(jira_instance=jira_url)
+
+    def create_agent(self, context=None) -> Agent:
+        """Create and return a configured Agno Agent with release notes capabilities.
 
         Args:
-            user_id: Optional user ID to override the instance user_id
+            context: Not used for this agent (no MCP tools needed)
 
         Returns:
-            The generated session ID
+            Configured Agno Agent instance
         """
-        if user_id is not None:
-            self.user_id = user_id
+        # Create storage
+        storage = self.create_storage("release_notes_agent_sessions")
 
-        self._session_id = self._generate_session_id()
+        # Get instructions
+        instructions = self.get_agent_instructions()
 
-        logger.info(f"Created new session: session_id={self._session_id}, user_id={self.user_id}")
-        return self._session_id
+        # Create file tools for workspace operations
+        file_tools = self.create_file_tools()
 
-    def get_current_session(self) -> str | None:
-        """
-        Get the current session ID.
+        # Create GitHub tools
+        github_tools = self.create_github_tools()
 
-        Returns:
-            Current session ID or None if no session exists
-        """
-        return self._session_id
+        # Create local JIRA tools
+        jira_tools = self.create_jira_tools()
 
-    def initialize(self) -> None:
-        """Initialize the agent with JIRA and GitHub tools."""
-        if self._initialized:
-            logger.debug("Agent already initialized")
-            return
+        # Create the agent
+        agent = Agent(
+            name="Release Notes Generator",
+            model=Gemini(id="gemini-2.5-flash"),
+            instructions=instructions,
+            tools=[jira_tools, github_tools, file_tools],
+            storage=storage,
+            memory=self.memory,
+            enable_agentic_memory=True,
+            add_datetime_to_instructions=True,
+            add_history_to_messages=True,
+            num_history_runs=3,
+            markdown=True,
+        )
 
-        try:
-            logger.info("Initializing release notes agent")
+        logger.info("Release notes agent created successfully")
+        return agent
 
-            # Create storage directory if needed
-            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+    def get_required_env_vars(self) -> list[str]:
+        """Return list of required environment variables."""
+        return ["JIRA_URL", "JIRA_PERSONAL_TOKEN", "GITHUB_ACCESS_TOKEN"]
 
-            # Create agent storage
-            storage = SqliteStorage(
-                table_name="release_notes_sessions",
-                db_file=str(self.storage_path),
-            )
+    async def setup_context(self) -> None:
+        """Setup async context - no context needed for local tools."""
+        return None
 
-            # Initialize tools
-            tools = []
+    async def cleanup_context(self, context) -> None:
+        """Cleanup async context - no cleanup needed for local tools."""
+        pass
 
-            # Add JIRA tools
-            tools.extend([jira_get_issue, jira_search_issues])
+    def get_display_name(self) -> str:
+        """Get display name for the agent."""
+        return "Release Notes Generator"
 
-            # Add GitHub tools - only get_pull_request_tool as requested
-            github_tools = GithubTools(
-                get_pull_request_with_details=True, get_pull_request=True, get_pull_request_changes=True
-            )
-            tools.append(github_tools)
+    def get_prompt_template_name(self) -> str:
+        """Get the name of the prompt template for this agent."""
+        return "agents.release_notes"
 
-            # Create the agent
-            self._agent = Agent(
-                name="Release Notes Generator",
-                model=Gemini(id="gemini-2.0-flash"),
-                instructions=[
-                    "You are a release notes generation assistant.",
-                    "Your task is to generate well-formatted release notes from JIRA tickets and GitHub pull requests.",
-                    "When given a JIRA ticket ID, use jira_get_issue to fetch the ticket details.",
-                    "Extract any GitHub pull request links from the ticket description, comments, or fields.",
-                    "For each GitHub PR link found, use get_pull_request to fetch the PR details.",
-                    "Generate comprehensive release notes that include:",
-                    "- A clear title based on the JIRA ticket summary",
-                    "- Key changes and improvements from the PR descriptions",
-                    "- Technical details from the changed files when relevant",
-                    "- Proper formatting in markdown or text as requested",
-                    "Always be thorough but concise in your release notes.",
-                    "Focus on user-facing changes and important technical improvements.",
-                    "Don't make up details that are not present in the ticket or PR.",
-                    "Always fetch the jira ticket first before processing PRs.",
-                    "If no Jira ticket is provided, ask for one.",
-                ],
-                tools=tools,
-                storage=storage,
-                add_datetime_to_instructions=True,
-                add_history_to_messages=True,
-                num_history_runs=3,
-                markdown=True,
-            )
-
-            self._initialized = True
-            logger.info("Release notes agent initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize release notes agent: {e}")
-            self._initialized = False
-            raise RuntimeError(f"Agent initialization failed: {e}") from e
-
-    def generate_release_notes(
-        self, ticket_id: str, session_id: str | None = None, output_format: str = "markdown"
-    ) -> RunResponse:
-        """
-        Generate release notes from a JIRA ticket ID.
-
-        Args:
-            ticket_id: JIRA ticket ID (e.g., PROJ-123)
-            session_id: Optional session ID to use for this generation
-            output_format: Output format (markdown, text)
-
-        Returns:
-            Agent response with generated release notes
-        """
-        # Ensure agent is initialized
-        if not self._initialized:
-            self.initialize()
-
-        if self._agent is None:
-            raise RuntimeError("Agent not properly initialized")
-
-        # Use provided session_id or create new session if none exists
-        if session_id is not None:
-            self._session_id = session_id
-        elif self._session_id is None:
-            self.create_session()
-
-        logger.debug(f"Generating release notes for ticket: '{ticket_id}' with session_id={self._session_id}")
-
-        # Construct the prompt
-        prompt = f"""
-Generate release notes for JIRA ticket {ticket_id}.
-
-Please follow these steps:
-1. Use jira_get_issue to fetch the JIRA ticket details for {ticket_id}
-   **Important:** Always fetch the JIRA ticket first before continuing. Without the ticket, you cannot proceed.
-2. Extract any GitHub pull request links from the ticket description, comments, or fields
-3. For each GitHub PR link found, use get_pull_request to fetch the PR details
-4. Generate comprehensive release notes in {output_format} format
-
-The release notes should include:
-- A clear title based on the JIRA ticket summary
-- Key changes and improvements from the PR descriptions
-- Technical details from the changed files when relevant
-- Proper formatting in {output_format}
-
-Focus on user-facing changes and important technical improvements.
-
-ATTENTION: Do not make up details that are not present. The first thing you must do is fetch the JIRA ticket.
-Use the jira_get_issue tool to get the ticket details before processing any PRs.
-If no JIRA ticket is provided, ask for one.
-"""
-
-        # Get response from agent
-        response = self._agent.run(prompt, stream=False, session_id=self._session_id, user_id=self.user_id)
-
-        return response
-
-    def ask(self, query: str, session_id: str | None = None) -> RunResponse:
-        """
-        Ask a follow-up question or request modifications to the release notes.
-
-        Args:
-            query: Question or modification request
-            session_id: Optional session ID to use for this query
-
-        Returns:
-            Agent response
-        """
-        # Ensure agent is initialized
-        if not self._initialized:
-            self.initialize()
-
-        if self._agent is None:
-            raise RuntimeError("Agent not properly initialized")
-
-        # Use provided session_id or create new session if none exists
-        if session_id is not None:
-            self._session_id = session_id
-        elif self._session_id is None:
-            self.create_session()
-
-        logger.debug(f"Processing ask query: '{query}' with session_id={self._session_id}")
-
-        # Get response from agent
-        response = self._agent.run(query, stream=False, session_id=self._session_id, user_id=self.user_id)
-
-        return response
+    def get_extra_info(self) -> list[str]:
+        """Get extra information to display when starting the agent."""
+        return [
+            "[dim]This agent generates release notes from JIRA tickets and GitHub PRs[/dim]",
+            "[dim]Required: JIRA_URL, JIRA_PERSONAL_TOKEN, GITHUB_ACCESS_TOKEN[/dim]",
+        ]
