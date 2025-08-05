@@ -39,7 +39,7 @@ def create_memory_instance(table_name: str, model_id: str = "gemini-2.5-flash") 
 
     memory_db = SqliteMemoryDb(table_name=table_name, db_file=str(db_file))
 
-    return Memory(model=Gemini(id=model_id), db=memory_db)
+    return Memory(model=Gemini(id=model_id), db=memory_db, delete_memories=True, clear_memories=True)
 
 
 def get_user_id() -> str:
