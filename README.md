@@ -665,7 +665,7 @@ instructions = get_agent_instructions_from_template(
 
 This tool uses a Retrieval-Augmented Generation (RAG) workflow: it leverages a local knowledge base of historical Jira issues and a LLM to recommend the best team and component for new Jira tickets. The agent performs semantic search over past issues to provide context-aware, data-driven triage recommendations.
 
-### 1. Extract Jira Data for RAG-Powered Triage
+### 1. Extract Jira Data for RAG-Powered Triage and Provide Jira Context
 
 Before you can triage Jira issues, you must first build the local knowledge base by extracting historical Jira issues. This is done with the `load-jira-knowledge` command:
 
@@ -685,6 +685,10 @@ uv run sidekick jira-triager load-jira-knowledge [OPTIONS]
 - Combines issues from all specified projects into a single file: `tmp/jira_knowledge_base.json`
 
 > **Note:** You must run this command at least once before using the triage command. Re-run it whenever you want to refresh the knowledge base with new Jira data.
+
+### Provide Jira Team Info:
+Add the following environment variables to the `.env` file: 
+`ALLOWED_TEAMS`, `COMPONENT_TEAM_MAP`, and `TEAM_ASSIGNEE_MAP`.
 
 ---
 
