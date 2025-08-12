@@ -5,8 +5,10 @@ This module implements an AI agent that analyzes previous support tickets and a 
 and recommends the best-matching team and component for assignment.
 """
 
+import os
 import re
 import uuid
+import json
 from pathlib import Path
 from typing import Any
 
@@ -18,77 +20,6 @@ from loguru import logger
 from sidekick.utils.jira_client_utils import clean_jira_description, get_project_component_names
 
 from .jira_knowledge import JiraKnowledgeManager
-
-ALLOWED_TEAMS = [
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-    "**REMOVED**",
-]
-
-COMPONENT_TEAM_MAP = {
-    "**REMOVED**": [
-        "3scale",
-        "Actions",
-        "Azure Container Registry plugin",
-        "Bulk Import Plugin",
-        "Matomo Analytics Provider Plugin",
-        "Notifications plugin",
-        "ocm",
-        "Open Cluster Management plugin",
-        "Platform plugins & Backend Plugins",
-        "Plugins",
-        "Quay Actions",
-        "RBAC Plugin",
-        "regex-actions",
-        "Software Templates",
-        "TechDocs",
-        "Web Terminal plugin",
-    ],
-    "**REMOVED**": [
-        "Bulk Import Plugin",
-        "Frontend Plugins & UI",
-        "Localization",
-        "ocm",
-        "Quickstart Plugin",
-        "RBAC Plugin",
-        "Theme",
-        "Topology plugin",
-        "UI",
-    ],
-    "**REMOVED**": ["Audit Log", "Build", "Catalog", "Core platform", "Event Module", "jfrog Artifactory", "Upstream"],
-    "**REMOVED**": ["Authentication", "FIPs", "Keycloak provider", "Security"],
-    "**REMOVED**": [
-        "database",
-        "Helm Chart",
-        "Installation & Run",
-        "Operator",
-        "Orchestrator plugin",
-        "RHDH Local",
-    ],
-    "**REMOVED**": ["Developer Hub UX"],
-    "**REMOVED**": ["Documentation"],
-    "**REMOVED**": ["Dynamic plugins", "Marketplace"],
-    "**REMOVED**": ["ArgoCD Plugin", "Quay Plugin", "Tekton plugin"],
-    "**REMOVED**": ["Performance"],
-    "**REMOVED**": ["AI", "lightspeed"],
-    "**REMOVED**": ["AI"],
-    "**REMOVED**": ["AI"],
-}
 
 
 class JiraTriagerAgent:
@@ -171,6 +102,16 @@ class JiraTriagerAgent:
                 table_name="jira_triager_sessions",
                 db_file=str(self.storage_path),
             )
+            # Load and parse configuration from environment (single-line JSON expected)
+            raw_allowed_teams = os.getenv("ALLOWED_TEAMS")
+            raw_component_team_map = os.getenv("COMPONENT_TEAM_MAP")
+            if not raw_allowed_teams:
+                raise ValueError("ALLOWED_TEAMS environment variable is required")
+            if not raw_component_team_map:
+                raise ValueError("COMPONENT_TEAM_MAP environment variable is required")
+
+            ALLOWED_TEAMS = json.loads(raw_allowed_teams)
+            COMPONENT_TEAM_MAP = json.loads(raw_component_team_map)
             # Build a summary of the team-to-components mapping for the instructions
             team_component_lines = []
             for team, components in COMPONENT_TEAM_MAP.items():
@@ -276,7 +217,6 @@ class JiraTriagerAgent:
         prompt = "\n".join(prompt_lines)
         response = self._agent.run(prompt, stream=False, session_id=self._session_id, user_id=self.user_id)
         # Parse the response for the JSON object
-        import json
 
         content = response.content if response.content is not None else "{}"
         # Remove Markdown code block markers if present
@@ -290,65 +230,12 @@ class JiraTriagerAgent:
             raise RuntimeError(f"Failed to parse agent response: {e}") from e
 
     def _get_assignee_team_info(self, assignee: str) -> str:
-        TEAM_ASSIGNEE_MAP = {
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"],
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**"],
-            "**REMOVED**": ["**REMOVED**"],
-            "**REMOVED**": [
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-                "**REMOVED**",
-            ],
-            "**REMOVED**": ["**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**", "**REMOVED**"],
-        }
+        raw_team_assignee_map = os.getenv("TEAM_ASSIGNEE_MAP")
+        if not raw_team_assignee_map:
+            raise ValueError("TEAM_ASSIGNEE_MAP environment variable is required")
         if not assignee:
             return ""
+        TEAM_ASSIGNEE_MAP = json.loads(raw_team_assignee_map)
         for team, members in TEAM_ASSIGNEE_MAP.items():
             if any(assignee.strip() == m.strip() for m in members):
                 return (
@@ -356,3 +243,4 @@ class JiraTriagerAgent:
                     "Assign the ticket to this team."
                 )
         return ""
+        
