@@ -9,12 +9,20 @@ import os
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
+from sidekick.tools.jira import _get_jira_client
 from sidekick.utils.jira_client_utils import DEFAULT_NUM_ISSUES, fetch_and_transform_issues, get_jira_triager_fields
 
 from ..agents.jira_knowledge import JiraKnowledgeManager
 from ..agents.jira_triager_agent import JiraTriagerAgent
 
+JIRA_FILTER = (
+    '(project = RHIDP OR project in ("Red Hat Developer Hub Bugs", rhdhsupp)) '
+    "AND status != closed AND (Team is EMPTY OR component is EMPTY) "
+    'AND issuetype not in (Sub-task, Epic, Feature, "Feature Request", Outcome) '
+    "ORDER BY created DESC, priority DESC"
+)
 console = Console()
 
 jira_triager_app = typer.Typer(
@@ -78,7 +86,9 @@ def load_jira_knowledge(
 @jira_triager_app.command()
 def triage(
     issue_id: str = typer.Argument(
-        None, help="Jira issue ID (e.g., RHIDP-6496). If provided, fetches fields automatically."
+        None,
+        help="Jira issue ID (e.g., RHIDP-6496). If provided, fetches fields automatically, "
+        "otherwise all filtered issues will be triaged.",
     ),
     title: str = typer.Option(None, help="Title of the Jira issue (overrides fetched title)"),
     description: str = typer.Option(None, help="Description of the Jira issue (overrides fetched description)"),
@@ -88,11 +98,9 @@ def triage(
     project_key: str = typer.Option(None, help="Project key (optional, overrides fetched)"),
 ):
     """Triage a Jira issue by ID or manual fields and recommend team/component."""
+    console = Console()
     jira_knowledge_manager = JiraKnowledgeManager()
     agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
-
-    def clean_field(val):
-        return val if val and str(val).strip() else None
 
     def get_field(cli_value, fetched_value, is_list=False):
         # If the CLI option was provided (even as empty string), use it (cleaned)
@@ -118,26 +126,80 @@ def triage(
             "assignee": get_field(assignee, fetched.get("assignee", "")),
             "project_key": get_field(project_key, fetched.get("project_key", "")),
         }
-    else:
-        current_ticket = {
-            "title": clean_field(title),
-            "description": clean_field(description),
-            "component": clean_field(component),
-            "team": clean_field(team),
-            "assignee": clean_field(assignee),
-            "project_key": clean_field(project_key),
-        }
-    result = agent.triage_ticket(current_ticket)
-    if result:
-        from rich.console import Console
-        from rich.panel import Panel
+        result = agent.triage_ticket(current_ticket)
+        if result:
+            from rich.panel import Panel
 
-        console = Console()
-        lines = []
-        for k, v in result.items():
-            lines.append(f"[bold magenta]{k.capitalize()}:[/bold magenta] [bold white]{v}[/bold white]")
-        panel_text = "\n".join(lines)
-        console.print(Panel(panel_text, title="Recommended Assignment", title_align="left", border_style="magenta"))
+            lines = []
+            confidence = result.get("confidence", 0.0)
+
+            for k, v in result.items():
+                if k == "confidence":
+                    lines.append(f"[bold yellow]Confidence:[/bold yellow] [bold white]{v:.2f}[/bold white]")
+                else:
+                    lines.append(f"[bold magenta]{k.capitalize()}:[/bold magenta] [bold white]{v}[/bold white]")
+
+            panel_text = "\n".join(lines)
+            console.print(Panel(panel_text, title="Recommended Assignment", title_align="left", border_style="magenta"))
+
+    else:
+        jira_knowledge_manager = JiraKnowledgeManager()
+        agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
+
+        jira = _get_jira_client()
+        issues = jira.search_issues(JIRA_FILTER, maxResults=100)
+        table = Table(title="Jira Triager Results")
+        table.add_column("Issue Key", style="cyan", no_wrap=True)
+        table.add_column("Team Assignment", style="magenta")
+        table.add_column("Component Assignment", style="green")
+        table.add_column("Confidence", style="yellow", justify="center")
+
+        for issue in issues:
+            try:
+                fetched = get_jira_triager_fields(issue)
+            except Exception as e:
+                typer.echo(f"Error fetching Jira issue: {e}")
+                raise typer.Exit(1) from e
+            current_ticket = {
+                "key": issue.key,
+                "title": fetched.get("title", ""),
+                "description": fetched.get("description", ""),
+                "component": fetched.get("components", ""),
+                "team": fetched.get("team", ""),
+                "assignee": fetched.get("assignee", ""),
+                "project_key": fetched.get("project_key", ""),
+            }
+            result = agent.triage_ticket(current_ticket)
+
+            # Determine what to display for each field
+            team_display = (
+                result.get("team", "")
+                if result.get("team")
+                else "[dim]Assigned[/dim]"
+                if current_ticket.get("team")
+                else ""
+            )
+            component_display = (
+                result.get("component", "")
+                if result.get("component")
+                else "[dim]Assigned[/dim]"
+                if current_ticket.get("component")
+                else ""
+            )
+
+            # Format confidence score
+            confidence = result.get("confidence", 0.0)
+            if result.get("team") or result.get("component"):  # Only show confidence if there are recommendations
+                confidence_display = f"{confidence:.2f}"
+            elif current_ticket.get("team") and current_ticket.get("component"):
+                confidence_display = "[dim]N/A[/dim]"  # Both fields already assigned
+            else:
+                confidence_display = ""  # Empty fields, no recommendations
+
+            table.add_row(issue.key, team_display, component_display, confidence_display)
+
+        console.print()
+        console.print(table)
 
 
 @jira_triager_app.command()

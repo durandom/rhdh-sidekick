@@ -5,6 +5,8 @@ This module implements an AI agent that analyzes previous support tickets and a 
 and recommends the best-matching team and component for assignment.
 """
 
+import json
+import os
 import re
 import uuid
 from pathlib import Path
@@ -18,77 +20,6 @@ from loguru import logger
 from sidekick.utils.jira_client_utils import clean_jira_description, get_project_component_names
 
 from .jira_knowledge import JiraKnowledgeManager
-
-ALLOWED_TEAMS = [
-    "RHIDP - Cope",
-    "RHIDP - Documentation",
-    "RHIDP - Dynamic Plugins",
-    "RHIDP - Frontend Plugins & UI",
-    "RHIDP - Install",
-    "RHIDP - Management",
-    "RHIDP - Performance and Scaling",
-    "RHIDP - Plugin and AI",
-    "RHIDP - Plugins",
-    "RHIDP - Product Management",
-    "RHIDP - Program Management",
-    "RHIDP - RHTAP",
-    "RHIDP - Security",
-    "RHIDP - Support",
-    "RHIDP - UXD",
-    "RHOAI Workload Orchestration",
-    "RHDHPAI - DevAI",
-    "RHDHPAI - UI",
-]
-
-COMPONENT_TEAM_MAP = {
-    "RHIDP - Plugins": [
-        "3scale",
-        "Actions",
-        "Azure Container Registry plugin",
-        "Bulk Import Plugin",
-        "Matomo Analytics Provider Plugin",
-        "Notifications plugin",
-        "ocm",
-        "Open Cluster Management plugin",
-        "Platform plugins & Backend Plugins",
-        "Plugins",
-        "Quay Actions",
-        "RBAC Plugin",
-        "regex-actions",
-        "Software Templates",
-        "TechDocs",
-        "Web Terminal plugin",
-    ],
-    "RHIDP - Frontend Plugins & UI": [
-        "Bulk Import Plugin",
-        "Frontend Plugins & UI",
-        "Localization",
-        "ocm",
-        "Quickstart Plugin",
-        "RBAC Plugin",
-        "Theme",
-        "Topology plugin",
-        "UI",
-    ],
-    "RHIDP - Cope": ["Audit Log", "Build", "Catalog", "Core platform", "Event Module", "jfrog Artifactory", "Upstream"],
-    "RHIDP - Security": ["Authentication", "FIPs", "Keycloak provider", "Security"],
-    "RHIDP - Install": [
-        "database",
-        "Helm Chart",
-        "Installation & Run",
-        "Operator",
-        "Orchestrator plugin",
-        "RHDH Local",
-    ],
-    "RHIDP - UXD": ["Developer Hub UX"],
-    "RHIDP - Documentation": ["Documentation"],
-    "RHIDP - Dynamic Plugins": ["Dynamic plugins", "Marketplace"],
-    "RHIDP - RHTAP": ["ArgoCD Plugin", "Quay Plugin", "Tekton plugin"],
-    "RHIDP - Performance and Scaling": ["Performance"],
-    "RHDHPAI - DevAI": ["AI", "lightspeed"],
-    "RHIDP - Plugin and AI": ["AI"],
-    "RHDHPAI - UI": ["AI"],
-}
 
 
 class JiraTriagerAgent:
@@ -171,6 +102,17 @@ class JiraTriagerAgent:
                 table_name="jira_triager_sessions",
                 db_file=str(self.storage_path),
             )
+            # Load and parse configuration from environment (single-line JSON expected)
+            raw_allowed_teams = os.getenv("ALLOWED_TEAMS")
+            raw_component_team_map = os.getenv("COMPONENT_TEAM_MAP")
+            if not raw_allowed_teams:
+                raise ValueError("ALLOWED_TEAMS environment variable is required")
+            if not raw_component_team_map:
+                raise ValueError("COMPONENT_TEAM_MAP environment variable is required")
+
+            ALLOWED_TEAMS = json.loads(raw_allowed_teams)
+            COMPONENT_TEAM_MAP = json.loads(raw_component_team_map)
+
             # Build a summary of the team-to-components mapping for the instructions
             team_component_lines = []
             for team, components in COMPONENT_TEAM_MAP.items():
@@ -186,18 +128,42 @@ class JiraTriagerAgent:
                     "You are an expert Jira ticket triager.",
                     "Your job is to recommend the best team and component for a new Jira issue, "
                     "based on previous support tickets.",
+                    "",
+                    "CRITICAL REQUIREMENTS:",
+                    "1. You MUST be CONSISTENT - identical tickets should get identical assignments",
+                    "2. You MUST return a JSON object with a confidence score between 0.0 and 1.0.",
+                    '3. Format: {"team": "Team Name", "component": "Component Name", "confidence": 0.85}',
+                    "4. The confidence field is MANDATORY. Never omit it.",
+                    "",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
                     "You will be given a list of previous tickets (with title, description, component, team) "
                     "and the current ticket (title, description, component, team, assignee).",
                     "You will be provided with the allowed components for the current ticket in the prompt.",
                     team_component_map_str,
+                    "",
+                    "CRITICAL ANALYSIS GUIDELINES:",
+                    "1. CAREFULLY read the issue title and description for specific technical keywords, "
+                    "error messages, and feature names.",
+                    "2. Match specific technical terms from the description to component names "
+                    "(e.g., 'RBAC' → 'RBAC Plugin', 'TechDocs' → 'TechDocs').",
+                    "3. AVOID overly generic components like 'Plugins' unless no more specific component fits.",
+                    "4. Prefer components that have specific technical alignment with the issue content.",
+                    "5. Look for technology stack indicators "
+                    "(React/Frontend → Frontend team, Docker/Helm → Install team).",
+                    "6. Error messages and stack traces often indicate the specific component or system involved.",
+                    "",
+                    "COMPONENT SELECTION PRIORITY:",
+                    "1. First priority: Exact feature/plugin name match (RBAC Plugin, TechDocs, Quay Plugin)",
+                    "2. Second priority: Technology-specific components "
+                    "(Authentication, Installation & Run, Dynamic plugins)",
+                    "3. Last resort: General categories (Plugins, UI, Core platform)",
+                    "",
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
                     "If the current ticket already has a component, team, or assignee, "
                     "consider them when determining the best match.",
-                    "Output ONLY a JSON object with keys 'team' and 'component'.",
+                    "Output ONLY a JSON object with keys 'team', 'component', and 'confidence'.",
                     "Do NOT include any explanation, markdown, or text outside the JSON.",
-                    'Example: {"team": "<team>", "component": "<component>"}',
                 ],
                 tools=[],
                 storage=storage,
@@ -236,14 +202,11 @@ class JiraTriagerAgent:
         logger.debug(f"Triaging ticket with session_id={self._session_id}")
 
         # Determine which fields are missing (treat None and '' as missing)
-        missing_fields = [
-            field
-            for field in ("team", "component")
-            if current_ticket.get(field) is None or current_ticket.get(field) == ""
-        ]
+        missing_fields = [field for field in ("team", "component") if not current_ticket.get(field)]
 
         if not missing_fields:
-            logger.info("No fields to assign; both team and component are already set.")
+            key = current_ticket.get("key")
+            logger.info(f"No fields to assign for {key}; both team and component are already set.")
             return {}
 
         # Build a focused prompt for the current ticket only
@@ -266,10 +229,43 @@ class JiraTriagerAgent:
                 f"Title: {current_ticket.get('title', '')}",
                 f"Description: {clean_jira_description(current_ticket.get('description', ''))}",
                 f"The current ticket is missing the following field(s): {missing_fields}.",
+                "",
+                "ANALYSIS PROCESS:",
+                "1. EXAMINE the historical tickets retrieved from the knowledge base",
+                "2. IDENTIFY tickets with similar titles, descriptions, or technical keywords",
+                "3. ANALYZE patterns in team/component assignments for similar issues",
+                "4. EXTRACT common technical terms, error types, and feature names",
+                "5. APPLY learned patterns to recommend the most appropriate assignment",
+                "",
+                "ASSIGNMENT STRATEGY:",
+                "- Find the most similar historical tickets and note their assignments",
+                "- Look for exact keyword matches (plugin names, error types, technologies)",
+                "- Prefer specific components over generic ones (avoid 'Plugins' unless necessary)",
+                "- Consider the technical domain (frontend/UI, backend/API, infrastructure, security)",
+                "- Weight assignments from very similar tickets more heavily",
+                "",
+                "REASONING REQUIREMENT:",
+                "- Base your decision on specific examples from retrieved historical tickets",
+                "- Mention which similar tickets influenced your decision",
+                "- Explain the key technical indicators that led to your choice",
+                "",
+                "CONFIDENCE SCORING GUIDELINES:",
+                "- 0.9-1.0: Very similar tickets with exact keyword matches and clear patterns",
+                "- 0.7-0.8: Similar tickets with good keyword overlap and consistent assignments",
+                "- 0.5-0.6: Some similarity but mixed patterns or limited historical data",
+                "- 0.3-0.4: Weak similarity, mostly educated guessing based on limited patterns",
+                "- 0.1-0.2: Very uncertain, no clear similar tickets found",
+                "",
                 "Use any assigned field(s) (component, team, assignee) as context to help "
                 "determine the best match for the missing field(s).",
-                "Recommend ONLY the missing field(s) as a JSON object "
-                '(e.g., {"team": ...} or {"component": ...} or both).'
+                "",
+                "OUTPUT FORMAT - CRITICAL REQUIREMENT:",
+                "You MUST return a JSON object with the following structure:",
+                '- If recommending team only: {"team": "Team Name", "confidence": 0.85}',
+                '- If recommending component only: {"component": "Component Name", "confidence": 0.85}',
+                '- If recommending both: {"team": "Team Name", "component": "Component Name", "confidence": 0.85}',
+                "",
+                "The confidence field is MANDATORY and must be a float between 0.0 and 1.0.",
                 "Do not include fields that are already assigned.",
             ]
         )
@@ -283,72 +279,18 @@ class JiraTriagerAgent:
         clean_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE | re.MULTILINE)
         try:
             result = json.loads(clean_content)
-            # Only return the missing fields
-            return {k: v for k, v in result.items() if k in missing_fields}
+            return {k: v for k, v in result.items() if k in missing_fields or k == "confidence"}
         except Exception as e:
             logger.error(f"Failed to parse agent response: {e}\nResponse: {response.content}")
             raise RuntimeError(f"Failed to parse agent response: {e}") from e
 
     def _get_assignee_team_info(self, assignee: str) -> str:
-        TEAM_ASSIGNEE_MAP = {
-            "RHIDP - Cope": [
-                "Paul Schultz",
-                "Nick Boldt",
-                "Bethany Griggs",
-                "Kashish Mittal",
-                "Joseph Kim",
-                "Omar Al Jaljuli",
-            ],
-            "RHIDP - Documentation": [
-                "Gerry Forde",
-                "Heena Manwani",
-                "Fabrice Flore-Thébault",
-                "Kavya Verma",
-                "Shipra Singh",
-                "Judith Magak",
-                "Priyanka Abel",
-            ],
-            "RHIDP - Dynamic Plugins": ["Stan Lewis", "Tomas Kral", "David Festal", "Rostislav Lan"],
-            "RHIDP - Frontend Plugins & UI": [
-                "Jaivardhan Kumar",
-                "Christoph Jerolimov",
-                "Divyanshi Gupta",
-                "Yi Cai",
-                "Debsmita Santra",
-                "Mitesh Kumar",
-                "Sanket Saikia",
-                "Jackson Lee",
-            ],
-            "RHIDP - Install": [
-                "Fortune Ndlovu",
-                "Armel Soro",
-                "Gennady Azarenkov",
-                "Subhash Khileri",
-                "Zbynek Drapela",
-            ],
-            "RHIDP - Plugins": [
-                "Patrick Knight",
-                "Dominika Zemanovicova",
-                "Oleksandr Andriienko",
-                "Gustavo Lira e Silva",
-                "Luke Holmquist",
-                "Diana Janickova",
-            ],
-            "RHIDP - Security": ["Kim Tsao", "Jessica He", "Alessandro Barbarossa"],
-            "RHIDP - UXD": ["Shiran Hirshberg"],
-            "RHDHPAI - DevAI": [
-                "Elson Yuen",
-                "Stephanie Cao",
-                "John Collier",
-                "Jordan Dubrick",
-                "Maysun Faisal",
-                "Theofanis Petkos",
-                "Michael Valdron",
-            ],
-            "RHDHPAI - UI": ["Rohit Rai", "Karthik Jeeyar", "Eswaraiah Sapram", "Avik Kundu", "Jan Richter"],
-        }
         if not assignee:
             return ""
+        raw_team_assignee_map = os.getenv("TEAM_ASSIGNEE_MAP")
+        if not raw_team_assignee_map:
+            raise ValueError("TEAM_ASSIGNEE_MAP environment variable is required")
+        TEAM_ASSIGNEE_MAP = json.loads(raw_team_assignee_map)
         for team, members in TEAM_ASSIGNEE_MAP.items():
             if any(assignee.strip() == m.strip() for m in members):
                 return (

@@ -693,6 +693,9 @@ uv run sidekick jira-triager load-jira-knowledge [OPTIONS]
 Once the knowledge base is built, you can triage Jira issues using the following command. The agent will use semantic search and LLM reasoning to recommend assignments:
 
 ```bash
+# Triage all Jira issues with missing team/ component
+uv run sidekick jira-triager triage
+
 # Triage a Jira issue by ticket ID (fields auto-fetched)
 uv run sidekick jira-triager triage RHIDP-6496
 
@@ -703,7 +706,7 @@ uv run sidekick jira-triager triage --title "Password reset fails" --description
 uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --team ""
 ```
 
-- The command will recommend the best team and component for the given Jira issue.
+- The command will recommend the best team and component for the given Jira issue and provide a score of confidence.
 - If you provide a Jira issue ID, the tool will automatically fetch the title, description, components, team, and assignee from Jira.
 
 #### How It Works
@@ -718,7 +721,6 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 
 ### Future Improvements
 - Better Jira integration:
-  - Pull Jira issues with missing team/components automatically
   - Implement command to apply changes to the Jira ticket automatically
 - Consider assigning multiple related components
 - Consider: For ArgoCD (not Roadie), Tekton and Quay plugins RHDHBugs should go to RHTAPBugs and engage the RHTAP UI team.
