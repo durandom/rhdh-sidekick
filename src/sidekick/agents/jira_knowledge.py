@@ -73,7 +73,7 @@ class JiraKnowledgeManager:
         self._knowledge = JSONKnowledgeBase(
             path=self.data_path,
             vector_db=self.get_vector_db(),
-            num_documents=5,
+            num_documents=10,
         )
         if self._knowledge is not None:
             self._knowledge.load_document(path=self.data_path, recreate=recreate)

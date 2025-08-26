@@ -46,6 +46,50 @@ class JiraIssueData(BaseModel):
     custom_fields: dict[str, Any] | None = Field(None, description="Custom Jira fields like release notes")
 
 
+def parse_json_to_jira_issue(json_content: str) -> JiraIssueData | None:
+    """
+    Parse JSON content into a JiraIssueData object.
+
+    Args:
+        json_content: JSON string containing Jira issue data
+
+    Returns:
+        JiraIssueData object if parsing successful, None otherwise
+    """
+    import json
+
+    try:
+        data = json.loads(json_content)
+
+        # Handle different possible JSON structures
+        if isinstance(data, dict):
+            # Extract fields that match JiraIssueData structure
+            issue_data = {
+                "key": data.get("key", ""),
+                "summary": data.get("summary", data.get("title", "")),
+                "description": data.get("description", ""),
+                "status": data.get("status", "Unknown"),
+                "priority": data.get("priority", "Unknown"),
+                "assignee": data.get("assignee"),
+                "reporter": data.get("reporter"),
+                "created_date": data.get("created_date"),
+                "updated_date": data.get("updated_date"),
+                "components": data.get("components", []),
+                "labels": data.get("labels", []),
+                "pull_requests": data.get("pull_requests", []),
+                "comments": data.get("comments"),
+                "custom_fields": data.get("custom_fields"),
+            }
+
+            return JiraIssueData(**issue_data)
+
+    except Exception as e:
+        logger.error(f"Failed to parse JSON to JiraIssueData: {e}")
+        return None
+
+    return None
+
+
 def _get_jira_client() -> JIRA:
     """
     Create and return a JIRA client instance.
