@@ -2,6 +2,9 @@
 Jira client utility functions for the sidekick CLI application.
 """
 
+import json
+import os
+
 from loguru import logger
 
 from sidekick.tools.jira import _get_jira_client
@@ -26,15 +29,22 @@ def get_project_component_names(project_key: str) -> list[str]:
         return []
 
 
-def get_jira_triager_fields(issue_id: str) -> dict:
+def get_jira_triager_fields(
+    issue_id: str,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    component: str | None = None,
+    team: str | None = None,
+    assignee: str | None = None,
+    project_key: str | None = None,
+) -> dict:
     """
-    Fetch a Jira issue by ID and return its key fields as a dictionary.
+    Fetch a Jira issue and return a simple "current_ticket" dict.
 
-    Args:
-        issue_id: The Jira issue key (e.g., PROJ-123)
-
-    Returns:
-        dict with keys: title, description, components, team (if available), assignee
+    Returns keys: key, title, description, component, team, assignee, project_key.
+    CLI-provided overrides (if not None) take precedence over fetched values. For
+    components, the first component is used.
     """
     jira = _get_jira_client()
     try:
@@ -42,26 +52,37 @@ def get_jira_triager_fields(issue_id: str) -> dict:
     except Exception as e:
         raise ValueError(f"Could not fetch Jira issue {issue_id}: {e}") from e
 
-    # Extract fields directly
-    title = getattr(issue.fields, "summary", "")
-    description = getattr(issue.fields, "description", "")
-    components = (
-        [comp.name for comp in getattr(issue.fields, "components", [])]
-        if getattr(issue.fields, "components", None)
-        else []
-    )
-    assignee = issue.fields.assignee.displayName if getattr(issue.fields, "assignee", None) else None
-    team = getattr(issue.fields, "customfield_12313240", None)
-    project_key = getattr(getattr(issue.fields, "project", None), "key", None)
+    fields = issue.fields
 
-    return {
-        "title": title,
-        "description": description,
-        "components": components,
-        "team": team,
-        "assignee": assignee,
-        "project_key": project_key,
+    fetched = {
+        "title": getattr(fields, "summary", ""),
+        "description": getattr(fields, "description", ""),
+        "components": [comp.name for comp in getattr(fields, "components", [])]
+        if getattr(fields, "components", None)
+        else [],
+        "team": getattr(getattr(fields, "customfield_12313240", None), "name", None),
+        "assignee": fields.assignee.displayName if getattr(fields, "assignee", None) else None,
+        "project_key": getattr(getattr(fields, "project", None), "key", None),
     }
+
+    def get_field(cli_value, fetched_value, is_list: bool = False):
+        if cli_value is not None:
+            return cli_value if cli_value.strip() else None
+        if is_list:
+            return (fetched_value or [""])[0]
+        return fetched_value
+
+    current_ticket = {
+        "key": issue_id,
+        "title": get_field(title, fetched.get("title", "")),
+        "description": get_field(description, fetched.get("description", "")),
+        "component": get_field(component, fetched.get("components"), is_list=True),
+        "team": get_field(team, fetched.get("team", "")),
+        "assignee": get_field(assignee, fetched.get("assignee", "")),
+        "project_key": get_field(project_key, fetched.get("project_key", "")),
+    }
+
+    return current_ticket
 
 
 def clean_jira_description(text):
@@ -132,3 +153,38 @@ def fetch_and_transform_issues(
     with open(output_file, "w") as file:
         json.dump(transformed_data, file, indent=2)
     logger.info(f"Wrote {len(transformed_data)} issues to {output_file}")
+
+
+TEAM_CUSTOM_FIELD_KEY = "customfield_12313240"
+
+
+def set_issue_field(issue_key: str, field_key: str, field_value: str | list[str]) -> dict:
+    """Set the given issue field. Currently supports components and team fields.
+
+    Returns a dict with `updated` (bool), `message` (str) and optional `details`.
+    """
+    try:
+        jira = _get_jira_client()
+        issue = jira.issue(issue_key)
+    except Exception as e:
+        return {"updated": False, "message": f"Could not fetch issue {issue_key}: {e}"}
+
+    try:
+        if field_key == "components":
+            payload_value = [{"name": str(x)} for x in field_value]
+        elif field_key == TEAM_CUSTOM_FIELD_KEY:
+            raw_team_id_map = os.getenv("TEAM_ID_MAP")
+            if not raw_team_id_map:
+                raise ValueError("TEAM_ID_MAP environment variable is required")
+            name_to_id = json.loads(raw_team_id_map)
+            team_id = name_to_id.get(field_value)
+            if not team_id:
+                raise ValueError(f"Team '{field_value}' not found in TEAM_ID_MAP")
+            payload_value = team_id
+        else:
+            return {"updated": False, "message": f"Update failed: field_key '{field_key}' not supported"}
+
+        issue.update(fields={field_key: payload_value})
+        return {"updated": True, "message": "Updated", "details": {field_key: payload_value}}
+    except Exception as e:
+        return {"updated": False, "message": f"Update failed: {e}", "details": {field_key: field_value}}

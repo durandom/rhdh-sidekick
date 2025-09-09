@@ -665,6 +665,20 @@ instructions = get_agent_instructions_from_template(
 
 This tool uses a Retrieval-Augmented Generation (RAG) workflow: it leverages a local knowledge base of historical Jira issues and a LLM to recommend the best team and component for new Jira tickets. The agent performs semantic search over past issues to provide context-aware, data-driven triage recommendations.
 
+**Required Environment variables:**
+
+- **GOOGLE_API_KEY**: Required for LLM predictions
+- **JIRA_PERSONAL_TOKEN**: Required for Jira API access
+- **JIRA_URL**: e.g., `https://issues.redhat.com`
+
+> Note: Values for the following variables are maintained in a private GitLab repository (internal). See [Jira Triager knowledge repo](https://gitlab.cee.redhat.com/jhe/rhdh-jira-triager-knowledge/-/blob/2698c1094ef0b4a67c3d8a6e01a5c1dcb9df08fd/.env).
+
+ - **ALLOWED_TEAMS**: JSON array of allowed team names
+ - **COMPONENT_TEAM_MAP**: JSON map of team → allowed components
+ - **TEAM_ID_MAP**: JSON map of team → Jira Team ID (for field updates)
+ - **TEAM_ASSIGNEE_MAP**: JSON map of team → known assignees
+
+
 ### 1. Extract Jira Data for RAG-Powered Triage
 
 Before you can triage Jira issues, you must first build the local knowledge base by extracting historical Jira issues. This is done with the `load-jira-knowledge` command:
@@ -687,6 +701,11 @@ uv run sidekick jira-triager load-jira-knowledge [OPTIONS]
 > **Note:** You must run this command at least once before using the triage command. Re-run it whenever you want to refresh the knowledge base with new Jira data.
 
 ---
+
+After building the knowledge base, you have two independent options to evaluate assignments:
+
+- **Triage**: Shows recommendations in a single table for quick inspection. No changes are applied.
+- **Review**: Guides you through each issue to review, approve, and apply changes to Jira one-by-one.
 
 ### 2. Triage Jira Issues Using the RAG Agent
 
@@ -719,11 +738,36 @@ uv run sidekick jira-triager triage RHIDP-6496 --component "Authentication" --te
 
 ---
 
+### 3. Review and Apply Recommendations Interactively
+
+The review tool lets you process a batch of Jira issues, inspect predicted team/component assignments with confidence, and interactively approve which updates to apply.
+
+**Usage:**
+
+```bash
+uv run sidekick jira-triager review
+```
+
+**What it does:**
+- Loads issues from a pre-configured Jira filter
+- Displays a confidence score for the recommendation
+- Lets you approve each change one-by-one
+- Presents a final summary and asks for confirmation before applying updates to Jira
+
+**Interactive options:**
+- **Y**: Apply recommendation for this issue (queued for update)
+- **S**: Skip this issue (no changes)
+- **D**: Show the issue description
+- **O**: Open the issue in your browser
+- **Q**: Quit the review session
+
+---
+
 ### Future Improvements
-- Better Jira integration:
-  - Implement command to apply changes to the Jira ticket automatically
 - Consider assigning multiple related components
+- Consider the assignment of parent Jira
 - Consider: For ArgoCD (not Roadie), Tekton and Quay plugins RHDHBugs should go to RHTAPBugs and engage the RHTAP UI team.
+- Dynamically pull the `ALLOWED_TEAMS`,`COMPONENT_TEAM_MAP`, `TEAM_ID_MAP`, and `TEAM_ASSIGNEE_MAP` from a single source of truth document or spreadsheet.
 
 ## Contributing
 

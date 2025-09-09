@@ -4,15 +4,23 @@ Jira Triager CLI commands.
 This module provides CLI commands for recommending team/component for Jira tickets using RAG.
 """
 
+import contextlib
 import json
 import os
+import webbrowser
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from sidekick.tools.jira import _get_jira_client
-from sidekick.utils.jira_client_utils import DEFAULT_NUM_ISSUES, fetch_and_transform_issues, get_jira_triager_fields
+from sidekick.utils.jira_client_utils import (
+    DEFAULT_NUM_ISSUES,
+    TEAM_CUSTOM_FIELD_KEY,
+    fetch_and_transform_issues,
+    get_jira_triager_fields,
+    set_issue_field,
+)
 
 from ..agents.jira_knowledge import JiraKnowledgeManager
 from ..agents.jira_triager_agent import JiraTriagerAgent
@@ -23,6 +31,7 @@ JIRA_FILTER = (
     'AND issuetype not in (Sub-task, Epic, Feature, "Feature Request", Outcome) '
     "ORDER BY created DESC, priority DESC"
 )
+
 console = Console()
 
 jira_triager_app = typer.Typer(
@@ -102,30 +111,20 @@ def triage(
     jira_knowledge_manager = JiraKnowledgeManager()
     agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
 
-    def get_field(cli_value, fetched_value, is_list=False):
-        # If the CLI option was provided (even as empty string), use it (cleaned)
-        if cli_value is not None:
-            val = cli_value if cli_value.strip() else None
-            return val
-        # Otherwise, use the fetched value
-        if is_list:
-            return (fetched_value or [""])[0]
-        return fetched_value
-
     if issue_id:
         try:
-            fetched = get_jira_triager_fields(issue_id)
+            current_ticket = get_jira_triager_fields(
+                issue_id,
+                title=title,
+                description=description,
+                component=component,
+                team=team,
+                assignee=assignee,
+                project_key=project_key,
+            )
         except Exception as e:
             typer.echo(f"Error fetching Jira issue: {e}")
             raise typer.Exit(1) from e
-        current_ticket = {
-            "title": get_field(title, fetched.get("title", "")),
-            "description": get_field(description, fetched.get("description", "")),
-            "component": get_field(component, fetched.get("components"), is_list=True),
-            "team": get_field(team, fetched.get("team", "")),
-            "assignee": get_field(assignee, fetched.get("assignee", "")),
-            "project_key": get_field(project_key, fetched.get("project_key", "")),
-        }
         result = agent.triage_ticket(current_ticket)
         if result:
             from rich.panel import Panel
@@ -143,9 +142,6 @@ def triage(
             console.print(Panel(panel_text, title="Recommended Assignment", title_align="left", border_style="magenta"))
 
     else:
-        jira_knowledge_manager = JiraKnowledgeManager()
-        agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
-
         jira = _get_jira_client()
         issues = jira.search_issues(JIRA_FILTER, maxResults=100)
         table = Table(title="Jira Triager Results")
@@ -156,19 +152,10 @@ def triage(
 
         for issue in issues:
             try:
-                fetched = get_jira_triager_fields(issue)
+                current_ticket = get_jira_triager_fields(issue.key)
             except Exception as e:
                 typer.echo(f"Error fetching Jira issue: {e}")
                 raise typer.Exit(1) from e
-            current_ticket = {
-                "key": issue.key,
-                "title": fetched.get("title", ""),
-                "description": fetched.get("description", ""),
-                "component": fetched.get("components", ""),
-                "team": fetched.get("team", ""),
-                "assignee": fetched.get("assignee", ""),
-                "project_key": fetched.get("project_key", ""),
-            }
             result = agent.triage_ticket(current_ticket)
 
             # Determine what to display for each field
@@ -200,6 +187,153 @@ def triage(
 
         console.print()
         console.print(table)
+
+
+@jira_triager_app.command()
+def review() -> None:
+    """Interactive review workflow: present predictions and let user approve/skip."""
+    jira = _get_jira_client()
+    jira_knowledge_manager = JiraKnowledgeManager()
+    agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
+
+    issues = jira.search_issues(JIRA_FILTER, maxResults=20)
+    console.print(f"Processing {len(issues)} issues...\n")
+    jira_base_url = os.getenv("JIRA_URL", "").rstrip("/")
+
+    approved_changes = []
+    for issue in issues:
+        try:
+            current_ticket = get_jira_triager_fields(issue.key)
+        except Exception as e:
+            console.print(f"[yellow]Warning: could not fetch fields for {issue.key}: {e}[/yellow]")
+            continue
+
+        result = agent.triage_ticket(current_ticket)
+
+        # Display compact prediction
+        confidence = result.get("confidence", 0.0)
+        console.print("-" * 36)
+        # Header: Issue key and title
+        console.print(f"[bold cyan]{issue.key}[/bold cyan]: [bold]{current_ticket.get('title', '')}[/bold]")
+
+        # Prepare values for display (join lists)
+        def _display_val(v):
+            if v is None:
+                return ""
+            if isinstance(v, list | tuple):
+                return ", ".join(str(x) for x in v)
+            return str(v)
+
+        team_assigned = _display_val(current_ticket.get("team"))
+        comp_assigned = _display_val(current_ticket.get("component"))
+        team_pred = _display_val(result.get("team"))
+        comp_pred = _display_val(result.get("component"))
+
+        # Existing assignments (separate section)
+        if team_assigned or comp_assigned:
+            console.print("\n[bold blue]Existing assignment:[/bold blue]")
+            if team_assigned:
+                console.print(f"  -> Team:      [dim]{team_assigned}[/dim]")
+            if comp_assigned:
+                console.print(f"  -> Component: [dim]{comp_assigned}[/dim]")
+
+        # Predictions (separate section)
+        if team_pred or comp_pred:
+            console.print("\n[bold magenta]Prediction:[/bold magenta]")
+            if team_pred:
+                console.print(f"  -> Team:      [bold magenta]{team_pred}[/bold magenta]")
+            if comp_pred:
+                console.print(f"  -> Component: [bold magenta]{comp_pred}[/bold magenta]")
+            console.print(f"\nConfidence: {confidence:.2f}\n")
+        elif not (team_assigned or comp_assigned):
+            console.print("\n[dim]No prediction available.[/dim]\n")
+
+        # Prompt user with interactive actions
+        quit_review = False
+        while True:
+            choice = typer.prompt(
+                "👉 (Y) Apply, (S) Skip, (D) Description, (O) Open Jira Link, (Q) Quit",
+                default="Y",
+            )
+            choice = (choice or "").strip().lower()
+            if choice == "d":
+                desc = current_ticket.get("description") or ""
+                if desc:
+                    console.print("\n[bold]Description:[/bold]")
+                    console.print(desc)
+                else:
+                    console.print("\n[dim]No description available.[/dim]")
+                continue
+            if choice == "o":
+                if jira_base_url:
+                    url = f"{jira_base_url}/browse/{issue.key}"
+                    console.print(f"[dim]{url}[/dim]")
+                    with contextlib.suppress(Exception):
+                        webbrowser.open_new_tab(url)
+                else:
+                    console.print("[yellow]JIRA_URL not set. Cannot open link.[/yellow]")
+                continue
+            if choice == "y":
+                approved_changes.append(
+                    {"key": issue.key, "team": result.get("team"), "component": result.get("component")}
+                )
+                console.print("✅ Approved. Moving to next issue...")
+                break
+            if choice == "s":
+                console.print("❌ Skipped. Moving to next issue...")
+                break
+            if choice == "q":
+                console.print("Quitting interactive review.")
+                quit_review = True
+                break
+            console.print("[yellow]Unrecognized choice. Please enter Y, N, D, O, or Q.[/yellow]")
+        if quit_review:
+            break
+
+    # Summary and confirmation
+    if not approved_changes:
+        console.print("\nNo changes approved. Exiting.")
+        return
+
+    console.print("\n" + "-" * 36)
+    console.print(f"Finished review. Ready to apply {len(approved_changes)} changes to Jira:\n")
+    for idx, change in enumerate(approved_changes, start=1):
+        console.print(f"{idx}. {change['key']}:")
+        team_val = change.get("team")
+        component_val = change.get("component")
+        printed = False
+        if team_val:
+            console.print(f"   - Set Team -> {team_val}")
+            printed = True
+        if component_val:
+            console.print(f"   - Set Component -> {component_val}")
+            printed = True
+        if not printed:
+            # If both values are None/empty (already assigned or no prediction), don't print set lines
+            console.print("   - No changes to apply")
+
+    confirm = typer.confirm("\n🚨 Proceed with applying these updates to Jira?", default=True)
+    if not confirm:
+        console.print("Aborted. No changes applied.")
+        return
+
+    console.print("\nApplying changes...")
+    for idx, change in enumerate(approved_changes, start=1):
+        try:
+            if change["team"]:
+                res = set_issue_field(change["key"], TEAM_CUSTOM_FIELD_KEY, change["team"])
+            if change["component"]:
+                res = set_issue_field(change["key"], "components", [change["component"]])
+            if res.get("updated"):
+                console.print(f"[{idx}/{len(approved_changes)}] ✅ Successfully updated {change['key']}")
+            else:
+                console.print(
+                    f"[{idx}/{len(approved_changes)}] ❌ Failed to update {change['key']}: {res.get('message')}"
+                )
+        except Exception as e:
+            console.print(f"[{idx}/{len(approved_changes)}] ❌ Failed to update {change['key']}: {e}")
+
+    console.print("\n✨ Triage complete!")
 
 
 @jira_triager_app.command()

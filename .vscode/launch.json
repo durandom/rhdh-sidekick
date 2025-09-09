@@ -75,10 +75,7 @@
             "args": [
                 "-vv",
                 "jira-triager",
-                "triage",
-                "RHDHSUPP-246",
-                "--component", "",
-                "--team", ""
+                "review",
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
